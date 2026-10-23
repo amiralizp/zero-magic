@@ -1,14 +1,15 @@
 # AGENTS.md
 
-Guidance for coding agents and new contributors working in `zero-magic/`.
+Guidance for coding agents and new contributors working on Gantry in
+`zero-magic/`.
 
 ## What this is
 
-A FastAPI backend for an agentic development funnel, weeks 1-3 of an internship
-plan. Cards move through a strict lifecycle; humans approve and validate, agents
-build. Week 3 adds PRD-to-cards breakdown with a model that is validated,
-retried, rate-limited and scored. A build-free console at `/console` exercises
-the same HTTP API.
+Gantry is a FastAPI backend for an agentic development funnel, weeks 1-3 of an
+internship plan. Cards move through a strict lifecycle; humans approve and
+validate, agents build. Week 3 adds PRD-to-cards breakdown with a model that is
+validated, retried, rate-limited and scored. A build-free console at `/console`
+exercises the same HTTP API.
 
 Not present yet: database, Docker, authentication, the week-4 frontend. The
 console in `app/web/` is a convenience page, not that frontend; do not add a

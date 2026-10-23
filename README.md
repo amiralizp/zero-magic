@@ -1,11 +1,14 @@
-# Zero Magic Funnel API
+# Gantry API
 
-Backend for an agentic development funnel, built through week 3 of the
-internship plan. A card moves through a fixed state machine; humans approve the
-spec and the result; agents build and submit; every illegal or unauthorised move
-fails loudly instead of being silently corrected. Week 3 adds a PRD-to-cards
-breakdown endpoint with structured output, timeouts, retries, fallback, a rate
-limit and a measured eval suite.
+Gantry is the backend for an agentic development funnel, built through week 3 of
+the internship plan. A card moves through a fixed state machine; humans approve
+the spec and the result; agents build and submit; every illegal or unauthorised
+move fails loudly instead of being silently corrected. Week 3 adds a
+PRD-to-cards breakdown endpoint with structured output, timeouts, retries,
+fallback, a rate limit and a measured eval suite.
+
+The name is the design: a gantry guides work along fixed rails, and the gates —
+spec approval, checks, validation — are held by humans, not agents.
 
 Weeks 1-3 are intentionally narrow: FastAPI, Pydantic and pytest; an in-memory
 store; no Vue, database, Docker or login yet. Those arrive in later weeks.

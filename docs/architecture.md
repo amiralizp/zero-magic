@@ -6,10 +6,10 @@
 
 ## 1. What this service is
 
-An HTTP API for an agentic development funnel. Work is described as a *card*
-with a written spec. A card walks a fixed lifecycle: a human approves the spec,
-an agent builds it, a human accepts the result. Week 3 adds a *PRD* resource and
-an endpoint that turns a PRD into typed draft cards with an LLM.
+Gantry is an HTTP API for an agentic development funnel. Work is described as a
+*card* with a written spec. A card walks a fixed lifecycle: a human approves the
+spec, an agent builds it, a human accepts the result. Week 3 adds a *PRD*
+resource and an endpoint that turns a PRD into typed draft cards with an LLM.
 
 Two properties drive most of the design:
 

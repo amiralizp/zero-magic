@@ -45,7 +45,7 @@ def _float(name: str, default: float) -> float:
 
 @dataclass(frozen=True)
 class Settings:
-    app_name: str = "Zero Magic Funnel API"
+    app_name: str = "Gantry API"
     api_version: str = "0.3.0"
     environment: str = "local"
 

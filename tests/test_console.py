@@ -13,6 +13,7 @@ def test_console_is_served_as_html(client):
     assert response.headers["content-type"].startswith("text/html")
     body = response.text
     assert 'class="app"' in body
+    assert "<strong>Gantry</strong>" in body
     assert "/console/assets/console.js" in body
     assert "/console/assets/console.css" in body
 
