@@ -11,6 +11,7 @@ from ..config import Settings
 from ..errors import AppError
 from ..rate_limit import SlidingWindowLimiter
 from ..schemas.actors import Actor, ActorRole
+from ..services.breakdown import BreakdownService
 from ..store import InMemoryStore
 
 
@@ -70,3 +71,12 @@ def require_human(
             "This action requires a human actor. Agents may comment and build.",
         )
     return actor
+
+
+def get_breakdown_service(
+    store: Annotated[InMemoryStore, Depends(get_store)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    registry: Annotated[ProviderRegistry, Depends(get_registry)],
+    limiter: Annotated[SlidingWindowLimiter, Depends(get_limiter)],
+) -> BreakdownService:
+    return BreakdownService(store, settings, registry, limiter)
