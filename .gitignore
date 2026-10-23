@@ -1,0 +1,25 @@
+# Environment and secrets
+.env
+.env.*
+!.env.example
+.venv/
+venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Local tooling and generated run artefacts
+evals/results.json
+scripts/_sandbox_run.json
+.DS_Store
+Thumbs.db
+
+# Generated agent trace (reproduce with scripts/agent_loop.py)
+scripts/agent-run.jsonl
