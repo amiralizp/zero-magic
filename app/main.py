@@ -16,7 +16,7 @@ from fastapi.responses import JSONResponse
 
 from .ai.providers.base import BreakdownProvider
 from .ai.registry import ProviderRegistry, build_providers
-from .api import assignment, cards, comments, meta
+from .api import assignment, cards, comments, meta, prds
 from .config import Settings
 from .errors import install_error_handlers
 from .rate_limit import SlidingWindowLimiter
@@ -79,6 +79,7 @@ def create_app(
     app.include_router(cards.router)
     app.include_router(comments.router)
     app.include_router(assignment.router)
+    app.include_router(prds.router)
 
     @app.get("/", include_in_schema=False)
     async def root() -> JSONResponse:
