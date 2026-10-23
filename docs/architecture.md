@@ -1,8 +1,8 @@
 # Architecture
 
-**Status:** weeks 1-3 complete (cards, comments, assignment, PRD breakdown)
+**Status:** weeks 1-3 complete (cards, comments, assignment, PRD breakdown) plus a build-free console
 **Last reviewed:** 2026-10-23
-**Out of scope for this version:** frontend, PostgreSQL, Docker, authentication
+**Out of scope for this version:** the week-4 Vue frontend, PostgreSQL, Docker, authentication
 
 ## 1. What this service is
 
@@ -23,7 +23,8 @@ Two properties drive most of the design:
 ## 2. Context
 
 ```
-Browser (week 4)          curl / PowerShell          evals + scripts
+Console page              curl / PowerShell          evals + scripts
+app/web/ (no build)              |                        |
         |                        |                        |
         +-------- HTTP ----------+------------------------+
                                  |
@@ -118,6 +119,7 @@ app/
       mock.py        deterministic offline quality tiers
       openrouter.py  OpenAI-compatible HTTP client
   schemas/           actors, cards, prds, common error envelope
+  web/               console.html, console.css, console.js (static, no build)
 ```
 
 ## 6. Endpoints
@@ -140,9 +142,15 @@ app/
 | GET | `/api/v1/prds` | none | 200 | - |
 | GET | `/api/v1/prds/{id}` | none | 200 | 404 |
 | POST | `/api/v1/prds/{id}/breakdown` | human | 201 | 403, 404, 422, 429, 502, 504 |
+| GET | `/console` | none | 200 | - (static console, outside OpenAPI) |
 
 Read endpoints are public *in this iteration*. They become workspace-scoped when
 authentication lands in week 6; see ADR 0002.
+
+The console is mounted from `app/web/` with `StaticFiles` under
+`/console/assets`. It is deliberately excluded from OpenAPI because it is not
+part of the API contract; every action it takes goes through the endpoints above
+with the selected `X-Actor-Id`, so the server's rules stay authoritative.
 
 ## 7. The state machine
 

@@ -14,6 +14,9 @@ cd zero-magic
 Do not run `python app/main.py`; it fails on relative imports (BUG-001 in
 `docs/test-plan.md`).
 
+The build-free console is served at `/console` from `app/web/`; it uses only the
+same HTTP API and adds no build step or dependency.
+
 ## Non-obvious rules
 
 - The funnel's transition matrix and human-only edges live in
@@ -32,7 +35,7 @@ Do not run `python app/main.py`; it fails on relative imports (BUG-001 in
 
 ## Before you finish
 
-1. `python -m pytest` is green (currently 164 tests).
+1. `python -m pytest` is green (currently 167 tests).
 2. If you changed a rule, update `/api/v1/meta`, `docs/architecture.md` and the
    relevant spec.
 3. If you changed a prompt or provider, regenerate the eval report and check the

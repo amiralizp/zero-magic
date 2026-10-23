@@ -20,8 +20,9 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
-Open <http://127.0.0.1:8000/docs>. The API works with no API key: the default
-model providers are deterministic offline mocks.
+Open <http://127.0.0.1:8000/docs> for the API reference and
+<http://127.0.0.1:8000/console> for the interactive console. The API works with
+no API key: the default model providers are deterministic offline mocks.
 
 ```powershell
 # Health and the seeded identities
@@ -51,6 +52,27 @@ get 401; the role attached to the id decides what is allowed.
 Seeded actors: `human:ada`, `human:grace`, `human:linus`, `agent:builder`,
 `agent:reviewer`, `agent:planner`.
 
+## Interactive console
+
+`/console` is a build-free page served by the app: plain HTML, CSS and
+JavaScript, no bundler and no new dependency. It is a convenience for using the
+API by hand, not the week-4 frontend.
+
+- Switch between seeded humans and agents; the choice is kept in
+  `localStorage` and sent as `X-Actor-Id`.
+- Drag cards across the six columns to attempt transitions. Illegal edges and
+  agent attempts at human-only edges fail with the real 409/403 error, shown as
+  a toast.
+- Open a card to edit its spec, set or clear the assignee, comment, or delete.
+- Create and list PRDs, then run a breakdown with a chosen prompt and model; the
+  result links straight to the created cards.
+- Read the live transition matrix, limits, actors and models from
+  `/api/v1/meta`.
+
+The console hides nothing the API enforces. Every button and drop calls the
+same endpoint a curl client would, so the server remains the source of truth.
+It is deliberately absent from OpenAPI: the API is the product.
+
 ## Endpoints
 
 | Method | Path | Who | Purpose |
@@ -71,6 +93,7 @@ Seeded actors: `human:ada`, `human:grace`, `human:linus`, `agent:builder`,
 | GET | `/api/v1/prds` | anyone | Newest first |
 | GET | `/api/v1/prds/{id}` | anyone | Read a PRD |
 | POST | `/api/v1/prds/{id}/breakdown` | human | PRD to typed cards in Spec |
+| GET | `/console` | anyone | Interactive board (outside OpenAPI) |
 
 ### The funnel
 
@@ -141,8 +164,8 @@ cd zero-magic
 & .venv\Scripts\python.exe scripts\agent_loop.py
 ```
 
-- `pytest`: 164 tests across unit, API integration, contract, security and eval
-  gates.
+- `pytest`: 167 tests across unit, API integration, contract, security, console
+  serving and eval gates.
 - `evals.run_evals`: 25 PRDs x 2 prompts x 2 models, writes
   [`docs/eval-report.md`](docs/eval-report.md). The v1 naive prompt scores 47.9
   on `mock-strong`; v2 scores 99.2 with a 100% valid rate.
@@ -170,6 +193,7 @@ zero-magic/
     config.py       environment-backed settings
     errors.py       one error envelope and its handlers
     store.py        in-memory store (PostgreSQL in week 5)
+    web/            build-free console: HTML, CSS, JS
   evals/            25-PRD dataset, metrics, runner
   scripts/          model comparison, embedding search, agent loop
   examples/         broken calculator sandbox
@@ -195,4 +219,5 @@ zero-magic/
 - Rate limits are per process; multiple workers would need Redis.
 - Mock token counts and prices are estimates; check vendor prices before
   trusting a bill.
-- There is no frontend in this repository yet (weeks 4+).
+- The console is a static convenience page, not a frontend application; the
+  week-4 Vue client is still ahead.

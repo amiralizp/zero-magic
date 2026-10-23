@@ -1,7 +1,7 @@
 # Test plan
 
 **Status:** weeks 1-3
-**Suite:** 164 tests, all offline, no API key required
+**Suite:** 167 tests, all offline, no API key required
 **Command:** `& .venv\Scripts\python.exe -m pytest`
 
 ## 1. What we are testing
@@ -49,7 +49,8 @@ failure paths of a real provider can be simulated deterministically.
 | `test_prds.py` | 7 | PRD storage, human-only, size limit, list order |
 | `test_units.py` | 21 | Matrix completeness, graph validation, tokens/cost, limiter, extraction |
 | `test_scripts.py` | 1 | Demo scripts start when run by path (BUG-001) |
-| **Total** | **164** | |
+| `test_console.py` | 3 | Console HTML/assets served, linked from root, absent from OpenAPI |
+| **Total** | **167** | |
 
 ## 4. Determinism and isolation
 

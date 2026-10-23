@@ -9,10 +9,12 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Mapping
+from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from .ai.providers.base import BreakdownProvider
 from .ai.registry import ProviderRegistry, build_providers
@@ -21,6 +23,8 @@ from .config import Settings
 from .errors import install_error_handlers
 from .rate_limit import SlidingWindowLimiter
 from .store import InMemoryStore
+
+WEB_DIR = Path(__file__).resolve().parent / "web"
 
 
 def create_app(
@@ -81,6 +85,17 @@ def create_app(
     app.include_router(assignment.router)
     app.include_router(prds.router)
 
+    app.mount(
+        "/console/assets",
+        StaticFiles(directory=WEB_DIR),
+        name="console-assets",
+    )
+
+    @app.get("/console", include_in_schema=False)
+    async def console() -> FileResponse:
+        """A small, build-free console so the API can be used by hand."""
+        return FileResponse(WEB_DIR / "console.html")
+
     @app.get("/", include_in_schema=False)
     async def root() -> JSONResponse:
         return JSONResponse(
@@ -88,6 +103,7 @@ def create_app(
                 "name": settings.app_name,
                 "version": settings.api_version,
                 "docs": "/docs",
+                "console": "/console",
                 "health": "/api/v1/health",
             }
         )

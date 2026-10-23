@@ -7,10 +7,12 @@ Guidance for coding agents and new contributors working in `zero-magic/`.
 A FastAPI backend for an agentic development funnel, weeks 1-3 of an internship
 plan. Cards move through a strict lifecycle; humans approve and validate, agents
 build. Week 3 adds PRD-to-cards breakdown with a model that is validated,
-retried, rate-limited and scored.
+retried, rate-limited and scored. A build-free console at `/console` exercises
+the same HTTP API.
 
-Not present yet: frontend, database, Docker, authentication. Do not add them
-unless the task explicitly moves the project to week 4+.
+Not present yet: database, Docker, authentication, the week-4 frontend. The
+console in `app/web/` is a convenience page, not that frontend; do not add a
+bundler or a new dependency for it.
 
 ## Commands
 
@@ -79,6 +81,7 @@ BUG-001 in `docs/test-plan.md`).
 | Embeddings | `app/ai/embeddings.py` |
 | Contracts | `app/schemas/` |
 | Evals | `evals/` |
+| Interactive console (HTML/CSS/JS) | `app/web/` |
 | Demos | `scripts/` |
 | Specs | `specs/` |
 | Decisions | `docs/adr/` |
@@ -120,3 +123,4 @@ read the store or build HTTP responses.
 | Prompt or provider | `docs/llm-explainer.md`, `docs/eval-report.md`, eval gate |
 | Limit or setting | `README.md`, `.env.example`, `docs/architecture.md` |
 | New decision with trade-offs | a new ADR in `docs/adr/` |
+| Console page or asset | `README.md`, `tests/test_console.py` |
