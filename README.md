@@ -27,6 +27,11 @@ Open <http://127.0.0.1:8000/docs> for the API reference and
 <http://127.0.0.1:8000/console> for the interactive console. The API works with
 no API key: the default model providers are deterministic offline mocks.
 
+To run without a terminal, double-click **`start-gantry.bat`** in this folder.
+It starts the server on port 8010, opens the console in your browser, and keeps
+the logs visible; close the window or press Ctrl+C to stop it. Pass
+`--no-browser` if you only want the server.
+
 ```powershell
 # Health and the seeded identities
 Invoke-RestMethod http://127.0.0.1:8000/api/v1/health
