@@ -3,20 +3,28 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Zero Magic Funnel · Console</title>
+  <meta name="theme-color" content="#070a10">
+  <title>Zero Magic · Funnel Console</title>
   <meta name="description" content="Interactive console for the agentic development funnel: drag cards through the stage machine, comment, assign and break PRDs into cards.">
   <link rel="stylesheet" href="/console/assets/console.css">
 </head>
 <body>
   <div class="app">
     <header class="topbar">
-      <div class="brand">
-        <span class="brand-mark" aria-hidden="true">ZM</span>
-        <span class="brand-text">
-          <strong>Zero Magic</strong>
-          <small>agentic funnel console</small>
+      <a class="brand" href="/console" aria-label="Zero Magic console home">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M5 7h14L5 17h14"/>
+          </svg>
         </span>
-      </div>
+        <span class="brand-text">
+          <span class="brand-line">
+            <strong>Zero Magic</strong>
+            <span class="brand-tag">Local</span>
+          </span>
+          <small>Agentic development funnel</small>
+        </span>
+      </a>
 
       <div class="topbar-controls">
         <span id="health" class="health health--waiting" title="API liveness">
@@ -25,47 +33,97 @@
         </span>
 
         <label class="actor-picker" for="actor-select">
-          <span class="actor-label">Acting as</span>
-          <select id="actor-select" aria-label="Choose the actor identity"></select>
+          <span id="actor-avatar" class="avatar" aria-hidden="true">A</span>
+          <span class="actor-field">
+            <span class="actor-label">Acting as</span>
+            <select id="actor-select" aria-label="Choose the actor identity"></select>
+          </span>
           <span id="actor-role" class="role-badge"></span>
         </label>
 
-        <button id="refresh" class="btn btn--ghost" type="button" title="Reload cards and PRDs (R)">
-          Refresh
-        </button>
-        <a class="btn btn--ghost" href="/docs" target="_blank" rel="noreferrer">API docs</a>
+        <div class="topbar-actions">
+          <button id="refresh" class="btn btn--ghost btn--icon" type="button" title="Reload cards and PRDs (R)" aria-label="Refresh">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M20 11a8 8 0 1 0-2.3 5.6"/><path d="M20 4v7h-7"/>
+            </svg>
+          </button>
+          <a class="btn btn--ghost" href="/docs" target="_blank" rel="noreferrer">
+            <span>API docs</span>
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M14 4h6v6"/><path d="M20 4l-8 8"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>
+            </svg>
+          </a>
+        </div>
       </div>
     </header>
 
     <nav class="tabs" aria-label="Console sections">
-      <button class="tab is-active" type="button" data-tab="board">Board</button>
-      <button class="tab" type="button" data-tab="prds">PRDs</button>
-      <button class="tab" type="button" data-tab="rules">Rules &amp; meta</button>
-      <span class="tabs-note">The server enforces every move. The console only shows what is possible.</span>
+      <div class="tab-group" role="tablist" aria-label="Sections">
+        <button class="tab is-active" type="button" data-tab="board" role="tab" aria-selected="true">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="3" y="4" width="7" height="7" rx="1.5"/><rect x="14" y="4" width="7" height="7" rx="1.5"/><rect x="3" y="13" width="7" height="7" rx="1.5"/><rect x="14" y="13" width="7" height="7" rx="1.5"/>
+          </svg>
+          <span>Board</span>
+        </button>
+        <button class="tab" type="button" data-tab="prds" role="tab" aria-selected="false">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M7 3h7l4 4v14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"/><path d="M14 3v5h4"/><path d="M9 13h6M9 17h4"/>
+          </svg>
+          <span>PRDs</span>
+        </button>
+        <button class="tab" type="button" data-tab="rules" role="tab" aria-selected="false">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 3l7 3v6c0 4.2-2.9 7.5-7 9-4.1-1.5-7-4.8-7-9V6l7-3Z"/><path d="m9 12 2 2 4-4"/>
+          </svg>
+          <span>Rules &amp; meta</span>
+        </button>
+      </div>
+      <span class="tabs-note">
+        <span class="pulse" aria-hidden="true"></span>
+        The server enforces every move
+      </span>
     </nav>
 
     <main class="main">
-      <section id="tab-board" class="panel-view" aria-label="Card board">
-        <div class="toolbar">
+      <section id="tab-board" class="panel-view" role="tabpanel" aria-label="Card board">
+        <div class="page-head">
           <div>
+            <span class="eyebrow">Pipeline</span>
             <h1>Funnel board</h1>
             <p id="board-summary" class="muted">Loading cards…</p>
           </div>
           <div class="toolbar-actions">
-            <input id="search" class="input input--search" type="search" placeholder="Search title or goal" aria-label="Search cards">
-            <button id="new-card" class="btn btn--primary" type="button">+ New card</button>
+            <span class="search-field">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/>
+              </svg>
+              <input id="search" class="input input--search" type="search" placeholder="Search title or goal" aria-label="Search cards">
+            </span>
+            <button id="new-card" class="btn btn--primary" type="button">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                <path d="M12 5v14M5 12h14"/>
+              </svg>
+              New card
+            </button>
           </div>
         </div>
-        <p class="hint">
-          Drag a card to another column to attempt a transition. Illegal moves and
-          agent attempts at human-only edges come back as errors — that is the point.
-        </p>
+
+        <div class="hint">
+          <span class="hint-icon" aria-hidden="true">i</span>
+          <span>
+            Drag a card to another column to attempt a transition. Illegal moves and
+            agent attempts at human-only edges come back as errors — that is the point.
+          </span>
+          <span class="hint-keys"><kbd>N</kbd> new <kbd>R</kbd> refresh <kbd>/</kbd> search</span>
+        </div>
+
         <div id="board" class="board" aria-live="polite"></div>
       </section>
 
-      <section id="tab-prds" class="panel-view" hidden aria-label="PRDs">
-        <div class="toolbar">
+      <section id="tab-prds" class="panel-view" role="tabpanel" hidden aria-label="PRDs">
+        <div class="page-head">
           <div>
+            <span class="eyebrow">Structured output</span>
             <h1>PRD breakdown</h1>
             <p class="muted">A PRD becomes typed cards in <code>spec</code>, atomically. Pick a prompt and model, then run it.</p>
           </div>
@@ -86,7 +144,10 @@
 
         <div class="split">
           <form id="prd-form" class="card-form" autocomplete="off">
-            <h2>New PRD</h2>
+            <div class="form-head">
+              <span class="eyebrow">New document</span>
+              <h2>Write a PRD</h2>
+            </div>
             <label class="field">
               <span>Title</span>
               <input id="prd-title" class="input" name="title" required minlength="3" maxlength="120" placeholder="Card comments">
@@ -113,34 +174,57 @@
         </div>
       </section>
 
-      <section id="tab-rules" class="panel-view" hidden aria-label="Rules and metadata">
-        <div class="toolbar">
+      <section id="tab-rules" class="panel-view" role="tabpanel" hidden aria-label="Rules and metadata">
+        <div class="page-head">
           <div>
+            <span class="eyebrow">Source of truth</span>
             <h1>Rules &amp; meta</h1>
             <p class="muted">Read live from <code>/api/v1/meta</code>. Locked edges require a human; the API returns 403 for an agent.</p>
           </div>
         </div>
+
         <div class="split split--wide">
           <div>
-            <h2>Transition matrix</h2>
+            <div class="section-head">
+              <h2>Transition matrix</h2>
+              <span class="section-note">6 stages · 6 locked edges</span>
+            </div>
             <div class="table-wrap">
               <table class="table">
                 <thead><tr><th>From</th><th>Legal targets</th></tr></thead>
                 <tbody id="transition-table"></tbody>
               </table>
             </div>
-            <h2 class="spaced">Limits</h2>
+
+            <div class="section-head spaced">
+              <h2>Limits</h2>
+              <span class="section-note">Typed guards</span>
+            </div>
             <div id="limits" class="kv"></div>
           </div>
+
           <div>
-            <h2>Seeded actors</h2>
+            <div class="section-head">
+              <h2>Seeded actors</h2>
+              <span class="section-note">Temporary identity</span>
+            </div>
             <div id="actor-list" class="actor-list"></div>
-            <h2 class="spaced">Models &amp; prompts</h2>
+
+            <div class="section-head spaced">
+              <h2>Models &amp; prompts</h2>
+              <span class="section-note">Offline mocks by default</span>
+            </div>
             <div id="models" class="kv"></div>
+
             <div class="callout">
-              <strong>Temporary identity.</strong>
-              <code>X-Actor-Id</code> is a stand-in for authentication (week 6).
-              Never expose this API publicly as-is.
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M12 3 2.8 19a1 1 0 0 0 .9 1.5h16.6a1 1 0 0 0 .9-1.5L12 3Z"/><path d="M12 9v5"/><path d="M12 17.5h.01"/>
+              </svg>
+              <span>
+                <strong>Development identity.</strong>
+                <code>X-Actor-Id</code> is a stand-in for authentication (week 6).
+                Never expose this API publicly as-is.
+              </span>
             </div>
           </div>
         </div>
@@ -158,35 +242,49 @@
     <form id="card-form" method="dialog" autocomplete="off">
       <div class="dialog-head">
         <div>
-          <h2>New card</h2>
+          <span class="eyebrow">New work item</span>
+          <h2>Create a card</h2>
           <p class="muted">Cards start in <code>spec</code>. A human approves the spec; an agent builds it.</p>
         </div>
-        <button class="icon-btn" type="button" data-close-dialog aria-label="Close">×</button>
+        <button class="icon-btn" type="button" data-close-dialog aria-label="Close">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true">
+            <path d="M6 6l12 12M18 6 6 18"/>
+          </svg>
+        </button>
       </div>
-      <label class="field">
-        <span>Title</span>
-        <input id="card-title" class="input" name="title" required minlength="3" maxlength="80" placeholder="Add comments to cards">
-      </label>
-      <label class="field">
-        <span>Goal</span>
-        <textarea id="card-goal" class="input input--area" name="goal" required minlength="10" maxlength="400" rows="3" placeholder="Let people discuss a card where the work happens."></textarea>
-      </label>
-      <label class="field">
-        <span>Acceptance criteria <small>one per line, 1–5</small></span>
-        <textarea id="card-criteria" class="input input--area" name="criteria" required rows="4" placeholder="POST /api/v1/cards/{id}/comments returns 201.&#10;An empty comment returns 422."></textarea>
-      </label>
-      <label class="field">
-        <span>Out of scope <small>one per line, optional</small></span>
-        <textarea id="card-scope" class="input input--area" name="scope" rows="2" placeholder="Editing comments"></textarea>
-      </label>
-      <label class="field">
-        <span>Assignee <small>optional; assignment is a human decision</small></span>
-        <select id="card-assignee" class="input"></select>
-      </label>
-      <p class="form-error" id="card-error" role="alert" hidden></p>
-      <div class="form-actions">
-        <button class="btn btn--primary" type="submit">Create card</button>
-        <button class="btn btn--ghost" type="button" data-close-dialog>Cancel</button>
+
+      <div class="dialog-body">
+        <label class="field">
+          <span>Title</span>
+          <input id="card-title" class="input" name="title" required minlength="3" maxlength="80" placeholder="Add comments to cards">
+        </label>
+        <label class="field">
+          <span>Goal</span>
+          <textarea id="card-goal" class="input input--area" name="goal" required minlength="10" maxlength="400" rows="3" placeholder="Let people discuss a card where the work happens."></textarea>
+        </label>
+        <label class="field">
+          <span>Acceptance criteria <small>one per line, 1–5</small></span>
+          <textarea id="card-criteria" class="input input--area" name="criteria" required rows="4" placeholder="POST /api/v1/cards/{id}/comments returns 201.&#10;An empty comment returns 422."></textarea>
+        </label>
+        <div class="field-row">
+          <label class="field">
+            <span>Out of scope <small>optional</small></span>
+            <textarea id="card-scope" class="input input--area" name="scope" rows="3" placeholder="Editing comments"></textarea>
+          </label>
+          <label class="field">
+            <span>Assignee <small>human-only decision</small></span>
+            <select id="card-assignee" class="input"></select>
+          </label>
+        </div>
+        <p class="form-error" id="card-error" role="alert" hidden></p>
+      </div>
+
+      <div class="dialog-foot">
+        <span class="dialog-note">A card cannot skip a stage.</span>
+        <div class="form-actions">
+          <button class="btn btn--ghost" type="button" data-close-dialog>Cancel</button>
+          <button class="btn btn--primary" type="submit">Create card</button>
+        </div>
       </div>
     </form>
   </dialog>

@@ -42,7 +42,14 @@ function actorName(id) {
 }
 
 function initials(name) {
-  return String(name || '?').split(/\s+/).slice(0, 2).map((word) => word[0] || '').join('').toUpperCase();
+  return String(name || '?')
+    .replace(/\([^)]*\)/g, ' ')
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((word) => word[0] || '')
+    .join('')
+    .toUpperCase();
 }
 
 function formatDate(iso) {
@@ -168,6 +175,9 @@ function setActor(id, { notify = false } = {}) {
   state.actorId = actor.id;
   localStorage.setItem('zm.actor', actor.id);
   $('#actor-select').value = actor.id;
+  const avatar = $('#actor-avatar');
+  avatar.textContent = initials(actor.display_name);
+  avatar.className = `avatar avatar--${actor.role}`;
   const badge = $('#actor-role');
   badge.textContent = actor.role;
   badge.dataset.role = actor.role;
@@ -750,12 +760,22 @@ async function refresh({ quiet = false } = {}) {
 
 /* Tabs --------------------------------------------------------------------- */
 
-function switchTab(tab) {
+function switchTab(tab, { sync = true } = {}) {
   state.tab = tab;
-  $$('.tab').forEach((button) => button.classList.toggle('is-active', button.dataset.tab === tab));
+  $$('.tab').forEach((button) => {
+    const active = button.dataset.tab === tab;
+    button.classList.toggle('is-active', active);
+    button.setAttribute('aria-selected', String(active));
+  });
   $$('.panel-view').forEach((panel) => { panel.hidden = panel.id !== `tab-${tab}`; });
+  if (sync && location.hash !== `#${tab}`) history.replaceState(null, '', `#${tab}`);
   if (tab === 'rules') renderRules();
   if (tab === 'prds') renderPrds();
+}
+
+function tabFromHash() {
+  const tab = location.hash.replace('#', '');
+  return ['board', 'prds', 'rules'].includes(tab) ? tab : 'board';
 }
 
 /* Wiring ------------------------------------------------------------------- */
@@ -841,6 +861,12 @@ function wire() {
       return;
     }
     if (isTyping(event.target) || event.ctrlKey || event.metaKey || event.altKey) return;
+    if (event.key === '/') {
+      event.preventDefault();
+      switchTab('board');
+      $('#search').focus();
+      return;
+    }
     if (event.key.toLowerCase() === 'n') openCardDialog();
     if (event.key.toLowerCase() === 'r') {
       checkHealth();
@@ -849,6 +875,7 @@ function wire() {
     }
   });
 
+  window.addEventListener('hashchange', () => switchTab(tabFromHash(), { sync: false }));
   window.addEventListener('online', checkHealth);
   window.addEventListener('offline', checkHealth);
 }
@@ -873,6 +900,7 @@ async function boot() {
     fillModelSelect();
     await refresh({ quiet: true });
     renderRules();
+    switchTab(tabFromHash(), { sync: false });
   } catch (error) {
     toast('error', 'Could not load the console', errorText(error), error.code);
     $('#board').innerHTML = '<p class="empty-note">The API is not reachable. Start it with <code>uvicorn app.main:app</code>, then refresh.</p>';
