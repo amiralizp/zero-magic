@@ -60,7 +60,7 @@ def create_app(
     install_error_handlers(app)
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=[settings.frontend_origin],
         allow_credentials=True,
         allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
         allow_headers=["Accept", "Content-Type", "X-Actor-Id", "X-Request-Id"],
