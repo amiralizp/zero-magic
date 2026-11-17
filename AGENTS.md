@@ -132,6 +132,29 @@ read the store or build HTTP responses.
 | New decision with trade-offs | a new ADR in `docs/adr/` |
 | Console page or asset | `README.md`, `tests/test_console.py` |
 
+## Architecture rules (target for week 4; see docs/architecture.md section 3.1)
+
+Read docs/architecture.md and docs/adr/ before changing structure. Dependencies
+point one way: HTTP (app/api) -> Service (app/services) -> Repository
+(app/repositories) -> database. Until the S8 refactor the code does not follow
+this everywhere; docs/critique.md lists the violations. New code must follow it.
+
+- HTTP: receives the request, checks its shape, identifies the caller, maps the
+  result to a response. No business rule, no repository call, no SQL.
+- Service: owns every rule, including roles. Never import fastapi, starlette,
+  app.api, app.presenters or a SQL driver. Do not name a concrete database.
+- Repository: the only layer that touches tables. No business rule, no role
+  check. Never import services or api.
+- AI layer: talks to models only. Never reads the repository.
+- AppError lives in a module without a web framework import.
+- Authentication (who are you) is HTTP; authorization (what may you do) is
+  checked in services on every call.
+
+Never edit or weaken a test to make it pass. If a test and a rule disagree, stop
+and ask. Do not read, print or edit .env; never commit .env, backups/ or *.bak.
+Do not change the public error codes or status codes: they are the contract.
+Make one small change at a time and run `pytest -q` after each module.
+
 ## Git protocol (follow exactly)
 
 - Work only on a branch named step/<ID>-<slug> (example: step/S4-architecture). Never commit to main.
