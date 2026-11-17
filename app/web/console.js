@@ -181,6 +181,8 @@ function setActor(id, { notify = false } = {}) {
   const badge = $('#actor-role');
   badge.textContent = actor.role;
   badge.dataset.role = actor.role;
+  const foot = document.getElementById('gantryChatFoot');
+  if (foot) foot.textContent = `Gantry AI · acting as ${actor.display_name}`;
   if (notify) {
     toast(
       'success',
@@ -260,6 +262,7 @@ async function openCard(cardId) {
   drawer.classList.add('is-open');
   drawer.setAttribute('aria-hidden', 'false');
   document.body.style.overflow = 'hidden';
+  document.body.classList.add('overlay-open');
 
   try {
     const data = await api(`/api/v1/cards/${encodeURIComponent(cardId)}/comments`);
@@ -283,6 +286,7 @@ function closeDrawer() {
   drawer.setAttribute('aria-hidden', 'true');
   $('#scrim').hidden = true;
   document.body.style.overflow = '';
+  document.body.classList.remove('overlay-open');
 }
 
 function renderDrawer(card) {
@@ -296,9 +300,15 @@ function renderDrawer(card) {
   const moves = targets.length
     ? targets.map((to) => {
       const locked = humanOnly.has(`${card.stage}->${to}`);
+      const needsOtherHuman = card.stage === 'validation' && to === 'done';
+      const title = needsOtherHuman
+        ? 'Human-only: a human who did not build the card must validate it.'
+        : locked
+          ? 'Human-only edge: an agent gets 403 here.'
+          : 'Any actor may take this edge.';
       return `
         <button class="btn btn--sm move-btn" type="button" data-move-to="${esc(to)}"
-                title="${locked ? 'Human-only edge: an agent gets 403 here.' : 'Any actor may take this edge.'}">
+                title="${title}">
           → ${esc(stageLabel(to))}${locked ? ' <span class="lock" aria-hidden="true">🔒</span>' : ''}
         </button>`;
     }).join('')
@@ -350,7 +360,9 @@ function renderDrawer(card) {
 
     <h3>Move this card</h3>
     <div class="move-grid">${moves}</div>
-    <p class="assignee-hint">Locked edges are human-only. The server checks your role, not the button.</p>
+    <p class="assignee-hint">${card.stage === 'validation'
+      ? 'Done is human-only, and it must be a human who did not build this card. If the server rejects you, switch actor in the header and try again.'
+      : 'Locked edges are human-only. The server checks your role, not the button.'}</p>
     ${editForm}
 
     <div class="drawer-section">
@@ -446,6 +458,15 @@ async function transitionCard(cardId, toStage) {
     await refresh({ quiet: true });
     if (drawerOpen) await openCard(cardId);
   } catch (error) {
+    if (error.code === 'self_validation_blocked') {
+      toast(
+        'error',
+        'A different human must validate',
+        'The actor that built this card cannot mark it Done. Switch to another human in the header, open the card and press → Done again.',
+        error.code
+      );
+      return;
+    }
     toast('error', 'Move rejected by the server', errorText(error), error.code);
   }
 }
@@ -740,6 +761,23 @@ function fillModelSelect() {
   select.value = defaults[0] || state.meta.models[0] || '';
 }
 
+/* Backups ------------------------------------------------------------------ */
+
+// Manual only, on purpose: nothing on a timer writes files to the disk.
+async function backupDatabase(button) {
+  if (button) button.disabled = true;
+  try {
+    const data = await api('/api/v1/backup', { method: 'POST' });
+    const name = String(data.file || '').split(/[\\/]/).pop();
+    const mb = ((data.bytes || 0) / (1024 * 1024)).toFixed(2);
+    toast('success', 'Backup written', `${name} (${mb} MB)`);
+  } catch (error) {
+    toast('error', 'Backup failed', errorText(error), error.code);
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
 /* Data loading ------------------------------------------------------------- */
 
 async function refresh({ quiet = false } = {}) {
@@ -794,6 +832,8 @@ function wire() {
   });
 
   $('#new-card').addEventListener('click', openCardDialog);
+  const backupButton = $('#backup');
+  if (backupButton) backupButton.addEventListener('click', () => backupDatabase(backupButton));
   $('#actor-select').addEventListener('change', (event) => setActor(event.target.value, { notify: true }));
 
   $('#card-form').addEventListener('submit', createCard);
@@ -879,6 +919,327 @@ function wire() {
   window.addEventListener('online', checkHealth);
   window.addEventListener('offline', checkHealth);
 }
+
+/* Gantry Inline Chat ------------------------------------------------------- */
+
+const gantryChat = {
+  open: false,
+  min: false,
+  messages: [],
+  model: '',
+  generating: false,
+  notice: '',
+};
+
+// The transcript is a scratch pad, not an archive: keep a week and the last
+// few hundred turns so localStorage cannot grow without bound.
+const CHAT_RETENTION_DAYS = 7;
+const CHAT_MAX_MESSAGES = 200;
+
+function gantryChatPrune(list) {
+  const cutoff = Date.now() - CHAT_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+  return list.filter((message) => !message.at || message.at >= cutoff).slice(-CHAT_MAX_MESSAGES);
+}
+
+function gantryChatScrollToEnd() {
+  const body = document.getElementById('gantryChatBody');
+  if (body) body.scrollTop = body.scrollHeight;
+}
+
+function gantryChatLoadHistory() {
+  try {
+    const saved = localStorage.getItem('gantry-inline-chat');
+    if (!saved) return;
+    const data = JSON.parse(saved);
+    if (Array.isArray(data.messages)) gantryChat.messages = gantryChatPrune(data.messages);
+    if (data.model) gantryChat.model = data.model;
+  } catch {}
+}
+
+function gantryChatSaveHistory() {
+  const now = Date.now();
+  gantryChat.messages = gantryChatPrune(
+    gantryChat.messages.map((message) => (message.at ? message : { ...message, at: now }))
+  );
+  localStorage.setItem('gantry-inline-chat', JSON.stringify({ messages: gantryChat.messages, model: gantryChat.model }));
+}
+
+async function gantryChatLoadModels() {
+  const select = document.getElementById('gantryChatModel');
+  if (!select) return;
+  try {
+    const res = await fetch('/api/v1/chat/models');
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const message = data?.error?.message || 'The chat model is not configured.';
+      gantryChat.notice = message;
+      select.innerHTML = '<option value="">unavailable</option>';
+      return;
+    }
+    select.innerHTML = '';
+    (data.models || []).forEach((m) => {
+      const opt = document.createElement('option');
+      opt.value = m;
+      opt.textContent = m;
+      if (m === data.default) opt.selected = true;
+      select.appendChild(opt);
+    });
+    gantryChat.model = select.value || data.default || '';
+    if (gantryChat.model) select.value = gantryChat.model;
+  } catch {
+    gantryChat.notice = 'Could not reach the chat API.';
+    select.innerHTML = '<option value="">offline</option>';
+  }
+}
+
+function gantryChatRenderMessages() {
+  const wrap = document.getElementById('gantryChatMessages');
+  const welcome = document.getElementById('gantryChatWelcome');
+  if (!wrap) return;
+  if (gantryChat.messages.length === 0) {
+    if (welcome) {
+      welcome.hidden = false;
+      const text = document.getElementById('gantryChatWelcomeText');
+      if (text) {
+        text.textContent = gantryChat.notice || 'Ask about the board, or tell me to create a spec, move a card, or comment.';
+        text.classList.toggle('gantry-chat-welcome-error', Boolean(gantryChat.notice));
+      }
+    }
+    wrap.innerHTML = '';
+    return;
+  }
+  if (welcome) welcome.hidden = true;
+  wrap.innerHTML = gantryChat.messages.map((msg) => {
+    const isUser = msg.role === 'user';
+    const avatar = isUser ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 1 0-16 0"/></svg>' : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M7 20h10M9 16v4M15 16v4"/></svg>';
+    const content = isUser ? esc(msg.content).replace(/\n/g, '<br>') : DOMPurify.sanitize(marked.parse(msg.content || ''));
+    return `<div class="gantry-chat-msg ${isUser ? 'user' : 'assistant'}"><div class="gantry-chat-avatar">${avatar}</div><div class="gantry-chat-bubble-wrap"><div class="gantry-chat-role">${isUser ? 'You' : 'Gantry AI'}</div><div class="gantry-chat-bubble">${content}</div></div></div>`;
+  }).join('');
+  const body = document.getElementById('gantryChatBody');
+  if (body) body.scrollTop = body.scrollHeight;
+}
+
+function gantryChatAddTyping() {
+  const wrap = document.getElementById('gantryChatMessages');
+  if (!wrap || document.getElementById('gantryChatTyping')) return;
+  const el = document.createElement('div');
+  el.id = 'gantryChatTyping';
+  el.className = 'gantry-chat-msg assistant';
+  el.innerHTML = '<div class="gantry-chat-avatar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M7 20h10M9 16v4M15 16v4"/></svg></div><div class="gantry-chat-bubble-wrap"><div class="gantry-chat-role">Gantry AI</div><div class="gantry-chat-bubble"><div class="gantry-chat-typing"><div class="gantry-chat-typing-dot"></div><div class="gantry-chat-typing-dot"></div><div class="gantry-chat-typing-dot"></div></div></div></div>';
+  wrap.appendChild(el);
+  const body = document.getElementById('gantryChatBody');
+  if (body) body.scrollTop = body.scrollHeight;
+}
+
+function gantryChatRemoveTyping() {
+  const el = document.getElementById('gantryChatTyping');
+  if (el) el.remove();
+}
+
+async function gantryChatSend() {
+  const input = document.getElementById('gantryChatInput');
+  const btn = document.getElementById('gantryChatSend');
+  const content = (input.value || '').trim();
+  if (!content || gantryChat.generating) return;
+  if (!gantryChat.model) {
+    gantryChat.messages.push({ role: 'user', content });
+    gantryChat.messages.push({
+      role: 'assistant',
+      content:
+        gantryChat.notice ||
+        'The chat model is unavailable. Check CHAT_API_KEY in .env and restart the server.',
+    });
+    input.value = '';
+    input.style.height = 'auto';
+    if (btn) btn.disabled = true;
+    gantryChatRenderMessages();
+    return;
+  }
+  gantryChat.generating = true;
+  if (btn) btn.disabled = true;
+
+  gantryChat.messages.push({ role: 'user', content });
+  gantryChatSaveHistory();
+  gantryChatRenderMessages();
+
+  input.value = '';
+  input.style.height = 'auto';
+
+  gantryChatAddTyping();
+
+  try {
+    const headers = { 'Content-Type': 'application/json' };
+    if (state.actorId) headers['X-Actor-Id'] = state.actorId;
+    const res = await fetch('/api/v1/chat/completions', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        messages: gantryChat.messages,
+        model: gantryChat.model || undefined,
+        actor: state.actorId || undefined,
+        temperature: 0.7,
+        max_tokens: 2048,
+      }),
+    });
+    gantryChatRemoveTyping();
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      const message = err?.error?.message || `Request failed with HTTP ${res.status}.`;
+      gantryChat.messages.push({ role: 'assistant', content: 'Error: ' + message });
+      gantryChatSaveHistory();
+      gantryChatRenderMessages();
+      gantryChat.generating = false;
+      if (btn) btn.disabled = input.value.trim() === '';
+      return;
+    }
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let text = '';
+    let failed = false;
+    let finished = false;
+    let buffer = '';
+    const wrap = document.getElementById('gantryChatMessages');
+    const msg = document.createElement('div');
+    msg.className = 'gantry-chat-msg assistant';
+    msg.innerHTML = '<div class="gantry-chat-avatar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M7 20h10M9 16v4M15 16v4"/></svg></div><div class="gantry-chat-bubble-wrap"><div class="gantry-chat-role">Gantry AI</div><div class="gantry-chat-bubble"></div></div>';
+    wrap.appendChild(msg);
+    const bubble = msg.querySelector('.gantry-chat-bubble');
+    const body = document.getElementById('gantryChatBody');
+
+    const handleFrame = (line) => {
+      if (!line.startsWith('data: ')) return;
+      const data = line.slice(6).trim();
+      if (data === '[DONE]') { finished = true; return; }
+      try {
+        const parsed = JSON.parse(data);
+        if (parsed.error) { text = 'Error: ' + parsed.error; failed = true; finished = true; return; }
+        if (parsed.gantry_tool) {
+          const tool = parsed.gantry_tool;
+          const hint = tool.code === 'missing_actor'
+            ? 'Reload this page once: the open tab is running an older script.'
+            : '';
+          toast(
+            tool.ok ? 'success' : 'error',
+            tool.ok ? 'Board updated' : 'Board refused the action',
+            [tool.summary || tool.name, hint].filter(Boolean).join(' — '),
+            tool.code || ''
+          );
+          if (tool.ok) {
+            if (tool.view === 'prds') switchTab('prds');
+            else if (tool.view === 'board') switchTab('board');
+            refresh({ quiet: true });
+          }
+          return;
+        }
+        const delta = parsed.choices?.[0]?.delta?.content || '';
+        if (delta) {
+          text += delta;
+          bubble.innerHTML = DOMPurify.sanitize(marked.parse(text));
+          if (body) body.scrollTop = body.scrollHeight;
+        }
+      } catch {}
+    };
+
+    // A network read can split an SSE frame in half; keep the tail and join it
+    // with the next read instead of dropping the event.
+    while (!finished) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+      lines.forEach(handleFrame);
+    }
+    if (buffer) handleFrame(buffer);
+    if (text) {
+      bubble.innerHTML = DOMPurify.sanitize(marked.parse(text));
+      gantryChat.messages.push({ role: 'assistant', content: text });
+      gantryChatSaveHistory();
+    }
+  } catch (e) {
+    gantryChatRemoveTyping();
+    gantryChat.messages.push({ role: 'assistant', content: 'Error: ' + e.message });
+    gantryChatSaveHistory();
+    gantryChatRenderMessages();
+  }
+
+  gantryChat.generating = false;
+  const input2 = document.getElementById('gantryChatInput');
+  const btn2 = document.getElementById('gantryChatSend');
+  if (btn2) btn2.disabled = (input2.value || '').trim() === '';
+  const body2 = document.getElementById('gantryChatBody');
+  if (body2) body2.scrollTop = body2.scrollHeight;
+}
+
+function gantryChatWire() {
+  const fab = document.getElementById('gantryChatFab');
+  const panel = document.getElementById('gantryChatPanel');
+  const close = document.getElementById('gantryChatClose');
+  const min = document.getElementById('gantryChatMin');
+  const input = document.getElementById('gantryChatInput');
+  const send = document.getElementById('gantryChatSend');
+  const model = document.getElementById('gantryChatModel');
+  const nw = document.getElementById('gantryChatNew');
+
+  if (fab) fab.addEventListener('click', () => {
+    panel.classList.add('is-open');
+    panel.setAttribute('aria-hidden', 'false');
+    panel.classList.remove('is-min');
+    gantryChat.open = true;
+    gantryChat.min = false;
+    gantryChatScrollToEnd();
+    setTimeout(() => {
+      gantryChatScrollToEnd();
+      input?.focus();
+    }, 50);
+  });
+  if (close) close.addEventListener('click', () => {
+    panel.classList.remove('is-open');
+    panel.setAttribute('aria-hidden', 'true');
+    gantryChat.open = false;
+  });
+  if (min) min.addEventListener('click', () => {
+    panel.classList.toggle('is-min');
+    gantryChat.min = panel.classList.contains('is-min');
+  });
+  if (nw) nw.addEventListener('click', () => {
+    if (!confirm('Start a new chat? The current transcript is cleared.')) return;
+    gantryChat.messages = [];
+    localStorage.removeItem('gantry-inline-chat');
+    gantryChatRenderMessages();
+    input.value = '';
+    input.style.height = 'auto';
+    if (send) send.disabled = true;
+    input?.focus();
+  });
+  if (model) model.addEventListener('change', () => {
+    gantryChat.model = model.value;
+    gantryChatSaveHistory();
+  });
+  if (input) {
+    input.addEventListener('input', () => {
+      input.style.height = 'auto';
+      input.style.height = Math.min(input.scrollHeight, 110) + 'px';
+      if (send) send.disabled = input.value.trim() === '' || gantryChat.generating;
+    });
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        if (!send.disabled) gantryChatSend();
+      }
+    });
+  }
+  if (send) send.addEventListener('click', gantryChatSend);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  gantryChatLoadHistory();
+  gantryChatLoadModels().then(() => {
+    gantryChatRenderMessages();
+    gantryChatScrollToEnd();
+  });
+  gantryChatWire();
+});
 
 /* Boot --------------------------------------------------------------------- */
 

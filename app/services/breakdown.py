@@ -28,7 +28,7 @@ from ..schemas.prds import (
     BreakdownRequest,
     Usage,
 )
-from ..store import InMemoryStore
+from ..db import Store
 from .cards import get_prd_or_404
 
 _OUTPUT_INJECTION_MARKERS = (
@@ -59,7 +59,7 @@ def _validate_output(breakdown: Breakdown, max_cards: int) -> None:
 class BreakdownService:
     def __init__(
         self,
-        store: InMemoryStore,
+        store: Store,
         settings: Settings,
         registry: ProviderRegistry,
         limiter: SlidingWindowLimiter,

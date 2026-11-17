@@ -6,11 +6,12 @@ merits rather than by guessing why something is the way it is.
 
 | ADR | Title | Status |
 | --- | --- | --- |
-| [0001](0001-in-memory-store.md) | In-memory store for weeks 1-3 | Accepted (temporary) |
+| [0001](0001-in-memory-store.md) | In-memory store for weeks 1-3 | Accepted (temporary; see 0006) |
 | [0002](0002-actor-header-identity.md) | `X-Actor-Id` as temporary identity | Accepted (temporary) |
 | [0003](0003-state-machine-in-service.md) | The state machine lives in the service layer | Accepted |
 | [0004](0004-mock-providers-and-evals.md) | Deterministic mock providers plus an eval gate | Accepted |
 | [0005](0005-error-envelope.md) | One error envelope for every failure | Accepted |
+| [0006](0006-sql-server-store.md) | SQL Server behind the existing store interface | Accepted |
 
 Format: a decision is a short document with **Status**, **Context**,
 **Decision**, **Consequences** and **Alternatives considered**. A decision that

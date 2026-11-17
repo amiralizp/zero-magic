@@ -59,6 +59,7 @@ class PRDRecord:
 
 class InMemoryStore:
     def __init__(self, actors: tuple[Actor, ...] = SEED_ACTORS) -> None:
+        self.kind = "memory"
         self._lock = threading.RLock()
         self.actors: dict[str, Actor] = {actor.id: actor for actor in actors}
         self.cards: dict[str, CardRecord] = {}

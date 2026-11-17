@@ -19,7 +19,7 @@ from ..schemas.prds import (
 )
 from ..services import cards as card_service
 from ..services.breakdown import BreakdownService
-from ..store import InMemoryStore
+from ..db import Store
 from .deps import (
     get_breakdown_service,
     get_settings,
@@ -50,7 +50,7 @@ _ERRORS = {
 async def create_prd(
     payload: PRDCreate,
     actor: Annotated[Actor, Depends(require_human)],
-    store: Annotated[InMemoryStore, Depends(get_store)],
+    store: Annotated[Store, Depends(get_store)],
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> PRDRead:
     record = card_service.create_prd(
@@ -61,7 +61,7 @@ async def create_prd(
 
 @router.get("/prds", response_model=PRDList, summary="List PRDs, newest first")
 async def list_prds(
-    store: Annotated[InMemoryStore, Depends(get_store)],
+    store: Annotated[Store, Depends(get_store)],
 ) -> PRDList:
     records = store.list_prds()
     return PRDList(
@@ -78,7 +78,7 @@ async def list_prds(
 )
 async def get_prd(
     prd_id: str,
-    store: Annotated[InMemoryStore, Depends(get_store)],
+    store: Annotated[Store, Depends(get_store)],
 ) -> PRDRead:
     record = card_service.get_prd_or_404(store, prd_id)
     return prd_to_read(store, record)

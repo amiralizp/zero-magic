@@ -38,8 +38,9 @@ app/web/ (no build)              |                        |
         |                        |                         |
         +----------+-------------+------------+------------+
                    |                          |
-             In-memory store            Mock providers (default)
-             app/store.py               OpenRouter provider (opt-in)
+             Store                      Mock providers (default)
+             app/db.py picks:           OpenRouter provider (opt-in)
+             memory or SQL Server
 ```
 
 There is no external service in the default configuration. That is deliberate:
@@ -52,7 +53,7 @@ the work.
 | --- | --- | --- | --- |
 | HTTP | `app/api/*.py`, `app/main.py` | schemas, services, errors | contain business rules or touch dicts |
 | Service | `app/services/cards.py`, `app/services/breakdown.py` | store, schemas, AI layer, settings | build HTTP responses |
-| Store | `app/store.py` | schemas, actors | enforce permissions or transitions |
+| Store | `app/store.py`, `app/store_sql.py`, `app/db.py` | schemas, actors | enforce permissions or transitions |
 | AI | `app/ai/*` | schemas for model output | read the store or raise `AppError` (except the registry) |
 | Contracts | `app/schemas/*` | Pydantic only | perform I/O |
 
@@ -94,7 +95,9 @@ app/
   main.py            app factory, middleware, routers, lifespan-free state
   config.py          frozen Settings read from environment (once)
   errors.py          AppError and the four exception handlers
-  store.py           dictionaries + RLock, audit log, seeded actors
+  store.py           dictionaries + RLock, audit log, seeded actors (tests)
+  store_sql.py       SQL Server tables, parameterised queries, connection pool
+  db.py              build_store: memory when DB_USER is empty, SQL otherwise
   actors.py          six seeded identities (three humans, three agents)
   presenters.py      record -> public model
   rate_limit.py      sliding-window limiter, in-process

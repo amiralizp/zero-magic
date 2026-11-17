@@ -11,7 +11,7 @@ from ..schemas.actors import Actor
 from ..schemas.cards import AssigneeUpdate, CardRead
 from ..schemas.common import ErrorEnvelope
 from ..services import cards as card_service
-from ..store import InMemoryStore
+from ..db import Store
 from .deps import get_store, require_human
 
 router = APIRouter(prefix="/api/v1/cards", tags=["assignment"])
@@ -35,7 +35,7 @@ async def set_assignee(
     card_id: str,
     payload: AssigneeUpdate,
     actor: Annotated[Actor, Depends(require_human)],
-    store: Annotated[InMemoryStore, Depends(get_store)],
+    store: Annotated[Store, Depends(get_store)],
 ) -> CardRead:
     record = card_service.assign_card(store, actor, card_id, payload.assignee_id)
     return card_to_read(store, record)

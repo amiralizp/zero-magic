@@ -12,7 +12,7 @@ from ..config import Settings
 from ..schemas.actors import ActorList
 from ..schemas.cards import STAGE_ORDER
 from ..services.cards import ALLOWED_TRANSITIONS, HUMAN_ONLY_TRANSITIONS
-from ..store import InMemoryStore
+from ..db import Store
 from .deps import get_registry, get_settings, get_store
 
 router = APIRouter(prefix="/api/v1", tags=["meta"])
@@ -21,16 +21,18 @@ router = APIRouter(prefix="/api/v1", tags=["meta"])
 @router.get("/health", summary="Liveness")
 async def health(request: Request) -> dict[str, str]:
     settings: Settings = request.app.state.settings
+    store = request.app.state.store
     return {
         "status": "ok",
         "version": settings.api_version,
         "environment": settings.environment,
+        "storage": getattr(store, "kind", "memory"),
     }
 
 
 @router.get("/actors", response_model=ActorList, summary="List seeded actors")
 async def actors(
-    store: Annotated[InMemoryStore, Depends(get_store)],
+    store: Annotated[Store, Depends(get_store)],
 ) -> ActorList:
     items = store.list_actors()
     return ActorList(items=items, total=len(items))
