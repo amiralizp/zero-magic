@@ -40,7 +40,7 @@
 
 ## بخش: شناخت وضع فعلی
 
-- [ ] **S3 — ممیزی بک‌اند و نوشتن critique.md**  (branch: `step/S3-<slug>`)
+- [x] **S3 — ممیزی بک‌اند و نوشتن critique.md**  (branch: `step/S3-<slug>`)
   - **Goal:** بفهمی کد فعلی کجا با معماری سه‌لایه فاصله دارد. لیست این مرحله مبنای refactor است. (تحویل روز ۱۷)
   - **Tasks:**
     - اول خودت ۱۵ دقیقه `app/api/cards.py`، `app/services/cards.py` و `app/store.py` را بخوان. برای هر مورد یک مثال بنویس: coupling، cohesion، layering، جهت وابستگی.
