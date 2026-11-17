@@ -88,7 +88,7 @@
   - **Done when:** هر دو فایل یک پیام یکسان درباره لایه‌ها و فایل‌های ممنوع دارند.
   - **Commit:** `docs(agent): add architecture rules to agent files`
 
-- [ ] **S7 — تست معماری (اول قرمز)**  (branch: `step/S7-<slug>`)
+- [x] **S7 — تست معماری (اول قرمز)**  (branch: `step/S7-<slug>`)
   - **Goal:** قوانین لایه‌ها خودکار چک شوند؛ اگر agent عجله کرد، تست جلویش را بگیرد. (Fitness Function)
   - **Tasks:**
     - فایل `tests/test_architecture.py` را بساز. با ماژول `ast` بخش `import`ها را می‌خواند، نه کل کد را.
