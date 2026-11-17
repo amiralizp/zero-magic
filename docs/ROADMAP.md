@@ -114,7 +114,7 @@
   - **S8 sub-steps (one branch and one commit each; tick S8 itself only when
     all eight are done):**
     - [x] S8.1 AppError to a framework-free module (step/S8-1-errors)
-    - [ ] S8.2 neutral records module shared by both stores
+    - [x] S8.2 neutral records module shared by both stores
     - [ ] S8.3 card/PRD list and get through services (no store in routers)
     - [ ] S8.4 meta via Depends(get_store), no app.state access
     - [ ] S8.5 chat: strict request schema, chat service, fix the 500 on a bad
