@@ -23,7 +23,8 @@ from .actors import SEED_ACTORS
 from .config import Settings
 from .schemas.actors import Actor, ActorRole
 from .schemas.cards import Stage
-from .store import CardRecord, CommentRecord, PRDRecord, utcnow
+from .records import CardRecord, CommentRecord, PRDRecord
+from .store import utcnow
 
 MAX_POOL = 4
 

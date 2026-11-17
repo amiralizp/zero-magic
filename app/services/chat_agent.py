@@ -20,7 +20,7 @@ from ..domain_errors import AppError
 from ..presenters import card_to_read
 from ..schemas.actors import Actor
 from ..schemas.cards import CardCreate, CardUpdate, Stage, TransitionRequest
-from ..store import CardRecord
+from ..records import CardRecord
 from .cards import (
     ALLOWED_TRANSITIONS,
     HUMAN_ONLY_TRANSITIONS,

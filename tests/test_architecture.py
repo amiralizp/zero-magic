@@ -170,3 +170,50 @@ def test_services_and_ai_do_not_import_app_errors():
                     for alias in node.names:
                         if alias.name == "app.errors":
                             raise AssertionError(f"{rel}:{node.lineno}: imports app.errors")
+
+
+def test_records_is_framework_and_sql_free():
+    import subprocess
+    import sys
+
+    code = (
+        "import sys; import app.records; "
+        "assert 'fastapi' not in sys.modules, 'fastapi loaded'; "
+        "assert 'starlette' not in sys.modules, 'starlette loaded'; "
+        "assert all(m not in sys.modules for m in ('pytds','pyodbc','sqlalchemy','psycopg','psycopg2','pymssql')), 'sql driver loaded'"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_store_records_are_same_class():
+    from app.records import CardRecord as RCard, CommentRecord as RComment, PRDRecord as RPrd
+    from app.store import CardRecord as SCard, CommentRecord as SComment, PRDRecord as SPrd
+
+    assert SCard is RCard
+    assert SComment is RComment
+    assert SPrd is RPrd
+
+
+def test_services_do_not_import_store_modules():
+    import ast
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parent.parent
+    for path in (root / "app" / "services").rglob("*.py"):
+        rel = path.relative_to(root).as_posix()
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom):
+                if node.level == 0 and node.module in {"app.store", "app.store_sql"}:
+                    raise AssertionError(f"{rel}:{node.lineno}: imports from {node.module}")
+                if node.level > 0 and node.module in {"store", "store_sql"}:
+                    raise AssertionError(f"{rel}:{node.lineno}: imports from .{node.module}")
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    if alias.name in {"app.store", "app.store_sql"}:
+                        raise AssertionError(f"{rel}:{node.lineno}: imports {alias.name}")

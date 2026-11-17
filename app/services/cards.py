@@ -7,7 +7,7 @@ from ..db import Store
 from ..domain_errors import AppError
 from ..schemas.actors import Actor, ActorRole
 from ..schemas.cards import CardCreate, CardUpdate, Stage, TransitionRequest
-from ..store import CardRecord, CommentRecord, PRDRecord
+from ..records import CardRecord, CommentRecord, PRDRecord
 
 # The funnel's legal edges. Everything else is a 409, not a silent correction.
 ALLOWED_TRANSITIONS: dict[Stage, frozenset[Stage]] = {
