@@ -11,9 +11,11 @@ validate, agents build. Week 3 adds PRD-to-cards breakdown with a model that is
 validated, retried, rate-limited and scored. A build-free console at `/console`
 exercises the same HTTP API.
 
-Not present yet: database, Docker, authentication, the week-4 frontend. The
-console in `app/web/` is a convenience page, not that frontend; do not add a
-bundler or a new dependency for it.
+Not present yet: Docker, authentication, the week-4 frontend. Persistence is
+SQL Server when `DB_USER` is set and the in-memory store otherwise; both live
+behind one interface (`app/db.py` picks). The console in `app/web/` is a
+convenience page, not that frontend; do not add a bundler or a new dependency
+for it.
 
 ## Commands
 
@@ -69,6 +71,8 @@ BUG-001 in `docs/test-plan.md`).
 | Settings from env | `app/config.py` |
 | Error types and handlers | `app/errors.py` |
 | In-memory store and audit log | `app/store.py` |
+| SQL Server store, schema, pool | `app/store_sql.py` |
+| Store selection from settings | `app/db.py` |
 | Seeded actors | `app/actors.py` |
 | Record -> public model | `app/presenters.py` |
 | Actor identity and dependencies | `app/api/deps.py` |
@@ -103,6 +107,8 @@ read the store or build HTTP responses.
 - Keep the eval gate green. A prompt change that lowers validity is a
   regression, even if the average score rises.
 - Run the full suite before finishing: `python -m pytest`.
+- The suite must never require SQL Server. Tests use the in-memory store; the
+  SQL path is checked by hand against a real server.
 
 ## Style
 
@@ -125,3 +131,16 @@ read the store or build HTTP responses.
 | Limit or setting | `README.md`, `.env.example`, `docs/architecture.md` |
 | New decision with trade-offs | a new ADR in `docs/adr/` |
 | Console page or asset | `README.md`, `tests/test_console.py` |
+
+## Git protocol (follow exactly)
+
+- Work only on a branch named step/<ID>-<slug> (example: step/S4-architecture). Never commit to main.
+- Do ONE roadmap step per session, then stop and wait for me.
+- Before any commit run `pytest -q`. If anything is red, stop and report. (Exception: S7 marks the new architecture test as xfail.)
+- Stage specific files only: `git add <path>`. Never `git add .` or `git add -A`.
+- Never stage .env, backups/, .venv, *.bak, *.log.
+- Before committing, show me: `git status`, `git diff --stat` and the proposed commit message. Wait for my OK.
+- Commit message format: type(scope): short summary. Types: feat, fix, refactor, test, docs, chore.
+- After the commit, tick the step in docs/ROADMAP.md.
+- Never push, merge, rebase, `reset --hard` or force-push unless I explicitly say so.
+- Never edit a test just to make it pass.
