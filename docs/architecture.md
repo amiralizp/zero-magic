@@ -1,7 +1,7 @@
 # Architecture
 
 **Status:** weeks 1-3 complete (cards, comments, assignment, PRD breakdown) plus a build-free console
-**Last reviewed:** 2026-10-23
+**Last reviewed:** 2026-11-17
 **Out of scope for this version:** the week-4 Vue frontend, PostgreSQL, Docker, authentication
 
 ## 1. What this service is
@@ -65,6 +65,68 @@ starting the app.
 
 `app/services/cards.py` is the single owner of the transition matrix. If it is
 not in that file, it is not a rule.
+
+### 3.1 Target boundaries (week 4)
+
+Dependencies point one way: HTTP -> Service -> Repository -> database. The AI
+layer is called by services. Schemas and the framework-free error type are
+shared by everyone.
+
+```
+HTTP (api)  -->  Service  -->  Repository  -->  PostgreSQL
+                    |
+                    +--> AI layer (providers)
+
+Shared: schemas (contracts), errors (AppError without a web framework)
+```
+
+| Layer | Folder | Job | Allowed | Forbidden |
+| --- | --- | --- | --- | --- |
+| HTTP | `app/api/`, `app/main.py`, `app/presenters.py` | Receive the request, check its shape, find out who is calling, map the result to a response | Call services; use schemas; read the token; choose status codes; apply presenters | Business rules (paging policy, 404 rules, role rules); calling repository methods; SQL; importing a database driver |
+| Service | `app/services/` | Own every rule: state machine, roles, preconditions, orchestration | Call the repository interface; call the AI layer; raise `AppError`; read settings | Importing `fastapi`, `starlette`, `app.api` or `app.presenters`; writing SQL; knowing which database is used |
+| Repository | `app/repositories/` (today `app/store.py`, `app/store_sql.py`, `app/db.py`, `app/backup.py`) | Read and write data; migrations | SQL through the driver; mapping rows to records; one implementation per backend (memory for tests, PostgreSQL) | Business rules; roles; importing services, api or `fastapi`; deciding what is allowed |
+| AI | `app/ai/` | Talk to models | Call providers; validate model output shape | Reading the repository; building HTTP responses |
+| Contracts | `app/schemas/` | Request and response shapes | Pydantic only | Any I/O |
+
+Authentication and authorization are separate jobs. The HTTP layer answers
+"who are you?" (token to actor). The service layer answers "what may you do?"
+and checks it on every call, so no entry point (HTTP, chat agent, script) can
+skip a rule.
+
+### 3.2 Top three qualities
+
+| Quality | Why it matters here | How it is checked |
+| --- | --- | --- |
+| Security | Agents and model output are untrusted; one missed check lets an agent approve its own work | 401/403 tests, OWASP checklist, no SQL outside the repository |
+| Testability | The state machine is the product; its rules must run without a web server or a database | Service tests with the in-memory repository |
+| Maintainability | Rules live in one place; replacing the database touches one layer; agents get clear limits for what they may edit | Architecture test on imports (planned, S7) |
+
+What we give up: some raw speed and a little extra code (interfaces, one more
+folder) in return for clear boundaries.
+
+### 3.3 Chosen style
+
+A layered monolith: one FastAPI process, one PostgreSQL database, no message
+queue. Creating all cards of a breakdown must be atomic, which is simplest in
+one database transaction. Breakdown and chat run inside the request with a
+deadline (section 10), so no separate worker exists. If breakdown regularly
+exceeds the deadline, or jobs must survive a restart, add a worker and queue
+through a new ADR.
+
+### 3.4 Rejected options
+
+| Option | Why not now | What would change the decision |
+| --- | --- | --- |
+| Microservices | Breakdown needs all-or-nothing card creation; splitting adds network failures and distributed transactions for one small team | Independent scaling or separate teams |
+| Event-driven with queue and worker | No work is longer than the request deadline today; harder to test and debug | Jobs longer than the deadline or that must survive restarts |
+| Hexagonal (ports and adapters) everywhere | Same dependency direction, but more interfaces than this size needs; we keep its one useful part, the repository interface | Many more external systems |
+| Modular monolith by feature | Valid, but code and tests are organised by layer; regrouping would be a rewrite with no new behaviour | The codebase grows into many independent features |
+
+### 3.5 Known violations
+
+`docs/critique.md` lists where the code does not yet follow 3.1. Until S8 the
+3.1 table is the target, not a description of the code. Planned enforcement:
+`tests/test_architecture.py` (S7) checks imports, and S8 removes the violations.
 
 ## 4. Request lifecycle
 
