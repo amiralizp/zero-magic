@@ -27,7 +27,7 @@
   - **Done when:** `git status` بدون سؤال اجرا می‌شود، اما `git commit` از تو اجازه می‌خواهد.
   - **Commit:** `chore(agent): add opencode permissions and git protocol`
 
-- [ ] **S2 — نقطه شروع امن**  (branch: `step/S2-<slug>`)
+- [x] **S2 — نقطه شروع امن**  (branch: `step/S2-<slug>`)
   - **Goal:** اگر وسط راه چیزی خراب شد، بتوانی به یک حالت سالم برگردی.
   - **Tasks:**
     - `pytest -q` را اجرا کن. اگر قرمز بود، همان را یادداشت کن؛ قرار نیست الان درستش کنیم.
