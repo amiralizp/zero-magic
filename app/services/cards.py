@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from ..config import Settings
 from ..db import Store
-from ..errors import AppError
+from ..domain_errors import AppError
 from ..schemas.actors import Actor, ActorRole
 from ..schemas.cards import CardCreate, CardUpdate, Stage, TransitionRequest
 from ..store import CardRecord, CommentRecord, PRDRecord

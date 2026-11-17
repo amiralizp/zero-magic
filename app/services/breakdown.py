@@ -18,7 +18,7 @@ from ..ai.registry import ProviderRegistry
 from ..ai.safety import neutralize, scan_injection
 from ..ai.tokens import estimate_cost
 from ..config import Settings
-from ..errors import AppError
+from ..domain_errors import AppError
 from ..presenters import card_to_read
 from ..rate_limit import SlidingWindowLimiter
 from ..schemas.actors import Actor, ActorRole

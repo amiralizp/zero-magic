@@ -125,3 +125,48 @@ def _violations() -> list[str]:
 def test_architecture_imports():
     violations = _violations()
     assert not violations, "Architecture violations:\n" + "\n".join(violations)
+
+
+def test_domain_errors_is_framework_free():
+    import subprocess
+    import sys
+
+    code = (
+        "import sys; import app.domain_errors; "
+        "assert 'fastapi' not in sys.modules, 'fastapi loaded'; "
+        "assert 'starlette' not in sys.modules, 'starlette loaded'"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_app_error_is_same_class():
+    from app.domain_errors import AppError as DomainAppError
+    from app.errors import AppError as ErrorsAppError
+
+    assert ErrorsAppError is DomainAppError
+
+
+def test_services_and_ai_do_not_import_app_errors():
+    import ast
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parent.parent
+    for folder in ("services", "ai"):
+        for path in (root / "app" / folder).rglob("*.py"):
+            rel = path.relative_to(root).as_posix()
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            for node in ast.walk(tree):
+                if isinstance(node, ast.ImportFrom):
+                    if node.level == 0 and node.module in {"app.errors", "app.errors"}:
+                        raise AssertionError(f"{rel}:{node.lineno}: imports from app.errors")
+                    if node.level > 0 and node.module == "errors":
+                        raise AssertionError(f"{rel}:{node.lineno}: imports from .errors")
+                if isinstance(node, ast.Import):
+                    for alias in node.names:
+                        if alias.name == "app.errors":
+                            raise AssertionError(f"{rel}:{node.lineno}: imports app.errors")

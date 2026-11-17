@@ -16,7 +16,7 @@ from typing import Any
 from pydantic import ValidationError
 
 from ..db import Store
-from ..errors import AppError
+from ..domain_errors import AppError
 from ..presenters import card_to_read
 from ..schemas.actors import Actor
 from ..schemas.cards import CardCreate, CardUpdate, Stage, TransitionRequest
