@@ -217,3 +217,19 @@ def test_services_do_not_import_store_modules():
                 for alias in node.names:
                     if alias.name in {"app.store", "app.store_sql"}:
                         raise AssertionError(f"{rel}:{node.lineno}: imports {alias.name}")
+
+
+def test_read_routers_do_not_call_store_methods():
+    import ast
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parent.parent
+    for rel in ("app/api/cards.py", "app/api/prds.py"):
+        path = root / rel
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+                if isinstance(node.func.value, ast.Name) and node.func.value.id == "store":
+                    raise AssertionError(
+                        f"{rel}:{node.lineno}: router calls store.{node.func.attr}(...)"
+                    )

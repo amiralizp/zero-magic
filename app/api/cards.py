@@ -7,7 +7,6 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query, Response, status
 
 from ..db import Store
-from ..errors import AppError
 from ..presenters import card_to_read
 from ..schemas.actors import Actor
 from ..schemas.cards import (
@@ -58,11 +57,12 @@ async def list_cards(
     limit: int = Query(default=50, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
 ) -> CardList:
-    records = store.list_cards(stage=stage, assignee_id=assignee, query=q)
-    window = records[offset : offset + limit]
+    records, total = card_service.list_cards(
+        store, stage=stage, assignee_id=assignee, query=q, limit=limit, offset=offset
+    )
     return CardList(
-        items=[card_to_read(store, record) for record in window],
-        total=len(records),
+        items=[card_to_read(store, record) for record in records],
+        total=total,
         limit=limit,
         offset=offset,
     )
@@ -78,9 +78,7 @@ async def get_card(
     card_id: str,
     store: Annotated[Store, Depends(get_store)],
 ) -> CardRead:
-    record = store.get_card(card_id)
-    if record is None:
-        raise AppError(404, "card_not_found", f"Card {card_id!r} does not exist.")
+    record = card_service.get_card_or_404(store, card_id)
     return card_to_read(store, record)
 
 

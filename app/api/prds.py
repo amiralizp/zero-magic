@@ -63,7 +63,7 @@ async def create_prd(
 async def list_prds(
     store: Annotated[Store, Depends(get_store)],
 ) -> PRDList:
-    records = store.list_prds()
+    records = card_service.list_prds(store)
     return PRDList(
         items=[prd_to_read(store, record) for record in records],
         total=len(records),

@@ -35,11 +35,34 @@ HUMAN_ONLY_TRANSITIONS: frozenset[tuple[Stage, Stage]] = frozenset(
 )
 
 
-def _card_or_404(store: Store, card_id: str) -> CardRecord:
+def get_card_or_404(store: Store, card_id: str) -> CardRecord:
     card = store.get_card(card_id)
     if card is None:
         raise AppError(404, "card_not_found", f"Card {card_id!r} does not exist.")
     return card
+
+
+# Backwards-compatible alias for internal callers.
+_card_or_404 = get_card_or_404
+
+
+def list_cards(
+    store: Store,
+    *,
+    stage: Stage | None = None,
+    assignee_id: str | None = None,
+    query: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> tuple[list[CardRecord], int]:
+    records = store.list_cards(stage=stage, assignee_id=assignee_id, query=query)
+    total = len(records)
+    window = records[offset : offset + limit]
+    return window, total
+
+
+def list_prds(store: Store) -> list[PRDRecord]:
+    return store.list_prds()
 
 
 def _require_human(actor: Actor, action: str) -> None:
