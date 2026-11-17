@@ -77,7 +77,7 @@
   - **Done when:** چهار ADR وجود دارد و هر کدام بخش «چطور چک می‌شود» دارد (مثلاً: تست معماری).
   - **Commit:** `docs(adr): add ADR 0007-0010`
 
-- [ ] **S6 — قوانین agent (AGENTS.md و CLAUDE.md)**  (branch: `step/S6-<slug>`)
+- [x] **S6 — قوانین agent (AGENTS.md و CLAUDE.md)**  (branch: `step/S6-<slug>`)
   - **Goal:** هر agent قبل از کار، قوانین معماری را بخواند و رعایت کند.
   - **Tasks:**
     - یک خط اضافه کن: «Read docs/architecture.md and the ADRs and follow them.»
