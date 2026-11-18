@@ -9,6 +9,9 @@ the command on a damaged one. RESTORE VERIFYONLY is not used here: it needs
 CREATE DATABASE permission in master, which the application login deliberately
 does not have. ``scripts/backup-db.ps1`` runs as the Windows user and performs
 the stronger verify.
+
+SQL execution and log writing only. Precondition and retention live in
+``app/services/backup.py`` (ADR 0007).
 """
 
 from __future__ import annotations
@@ -51,11 +54,8 @@ def _log(path: Path, line: str) -> None:
     logger.info(line)
 
 
-def run_backup(settings: Settings) -> Path:
-    """Write, verify and prune one backup. Raises if the backup is not usable."""
-
-    if not settings.db_user:
-        raise RuntimeError("No SQL login is configured; there is nothing to back up")
+def execute_backup(settings: Settings) -> Path:
+    """SQL execution and log writing only. No precondition or pruning."""
 
     destination = backup_dir(settings)
     destination.mkdir(parents=True, exist_ok=True)
@@ -82,11 +82,5 @@ def run_backup(settings: Settings) -> Path:
 
     size = round(target.stat().st_size / (1024 * 1024), 2)
     _log(log, f"backup ok: {target} ({size} MB)")
-
-    cutoff = datetime.now() - timedelta(days=settings.backup_keep_days)
-    for old in destination.glob(f"{settings.db_name}_*.bak"):
-        if datetime.fromtimestamp(old.stat().st_mtime) < cutoff:
-            old.unlink(missing_ok=True)
-            _log(log, f"pruned: {old.name}")
 
     return target

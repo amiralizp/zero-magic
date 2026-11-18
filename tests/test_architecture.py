@@ -293,3 +293,53 @@ def test_chat_router_does_not_call_store_methods():
                 raise AssertionError(
                     f"{rel}:{node.lineno}: chat router calls store.{node.func.attr}(...)"
                 )
+
+
+def test_backup_service_is_framework_and_sql_free():
+    import ast
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parent.parent
+    rel = "app/services/backup.py"
+    path = root / rel
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    forbidden_modules = {"fastapi", "starlette", "pytds", "httpx"}
+    forbidden_imports = {"app.api", "app.presenters"}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                top = alias.name.split(".")[0]
+                if top in forbidden_modules:
+                    raise AssertionError(f"{rel}:{node.lineno}: imports {alias.name}")
+                if alias.name in forbidden_imports or alias.name.startswith("app.api") or alias.name.startswith("app.presenters"):
+                    raise AssertionError(f"{rel}:{node.lineno}: imports {alias.name}")
+        if isinstance(node, ast.ImportFrom):
+            mod = node.module or ""
+            top = mod.split(".")[0]
+            if top in forbidden_modules:
+                raise AssertionError(f"{rel}:{node.lineno}: imports from {mod}")
+            if mod in forbidden_imports or mod.startswith("app.api") or mod.startswith("app.presenters"):
+                raise AssertionError(f"{rel}:{node.lineno}: imports from {mod}")
+
+
+def test_ops_router_does_not_import_backup_or_pytds():
+    import ast
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parent.parent
+    rel = "app/api/ops.py"
+    path = root / rel
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name == "app.backup" or alias.name.startswith("app.backup"):
+                    raise AssertionError(f"{rel}:{node.lineno}: imports {alias.name}")
+                if alias.name == "pytds":
+                    raise AssertionError(f"{rel}:{node.lineno}: imports pytds")
+        if isinstance(node, ast.ImportFrom):
+            mod = node.module or ""
+            if mod == "app.backup" or mod.startswith("app.backup"):
+                raise AssertionError(f"{rel}:{node.lineno}: imports from {mod}")
+            if mod == "pytds":
+                raise AssertionError(f"{rel}:{node.lineno}: imports from pytds")
