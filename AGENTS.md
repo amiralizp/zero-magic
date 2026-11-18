@@ -11,9 +11,9 @@ validate, agents build. Week 3 adds PRD-to-cards breakdown with a model that is
 validated, retried, rate-limited and scored. A build-free console at `/console`
 exercises the same HTTP API.
 
-Not present yet: Docker, authentication, the week-4 frontend. Persistence is
-SQL Server when `DB_USER` is set and the in-memory store otherwise; both live
-behind one interface (`app/db.py` picks). The console in `app/web/` is a
+Not present yet: Docker, authentication, the week-4 frontend, PostgreSQL. Persistence is
+SQL Server when `DB_USER` is set and the in-memory repository otherwise; both live
+behind one interface (`app/repositories/factory.py` picks). The console in `app/web/` is a
 convenience page, not that frontend; do not add a bundler or a new dependency
 for it.
 
@@ -70,9 +70,9 @@ BUG-001 in `docs/test-plan.md`).
 | App factory, middleware, routers | `app/main.py` |
 | Settings from env | `app/config.py` |
 | Error types and handlers | `app/errors.py` |
-| In-memory store and audit log | `app/store.py` |
-| SQL Server store, schema, pool | `app/store_sql.py` |
-| Store selection from settings | `app/db.py` |
+| In-memory repository and audit log | `app/repositories/memory.py` |
+| SQL Server repository, schema, pool | `app/repositories/sql_server.py` |
+| Repository selection from settings | `app/repositories/factory.py` |
 | Seeded actors | `app/actors.py` |
 | Record -> public model | `app/presenters.py` |
 | Actor identity and dependencies | `app/api/deps.py` |
@@ -91,7 +91,7 @@ BUG-001 in `docs/test-plan.md`).
 | Specs | `specs/` |
 | Decisions | `docs/adr/` |
 
-Dependency direction is one way: HTTP -> services -> store/AI -> schemas.
+Dependency direction is one way: HTTP -> services -> repository/AI -> schemas.
 Schemas import nothing from the app except other schemas. The AI layer must not
 read the store or build HTTP responses.
 
@@ -159,7 +159,7 @@ Make one small change at a time and run `pytest -q` after each module.
 
 - Work only on a branch named step/<ID>-<slug> (example: step/S4-architecture). Never commit to main.
 - Do ONE roadmap step per session, then stop and wait for me.
-- Before any commit run `pytest -q`. If anything is red, stop and report. (Exception: S7 marks the new architecture test as xfail.)
+- Before any commit run `pytest -q`. If anything is red, stop and report.
 - Stage specific files only: `git add <path>`. Never `git add .` or `git add -A`.
 - Never stage .env, backups/, .venv, *.bak, *.log.
 - Before committing, show me: `git status`, `git diff --stat` and the proposed commit message. Wait for my OK.
