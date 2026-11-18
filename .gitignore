@@ -23,3 +23,9 @@ Thumbs.db
 
 # Generated agent trace (reproduce with scripts/agent_loop.py)
 scripts/agent-run.jsonl
+
+# Database backups
+backups/
+
+# Server logs
+*.log

@@ -7,7 +7,7 @@ for an ordered list so fallback policy is testable without touching HTTP.
 from __future__ import annotations
 
 from ..config import Settings
-from ..errors import AppError
+from ..domain_errors import AppError
 from .providers.base import BreakdownProvider
 from .providers.mock import make_mock_providers
 from .providers.openrouter import OpenRouterProvider

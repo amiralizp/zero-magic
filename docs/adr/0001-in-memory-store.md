@@ -1,6 +1,6 @@
 # ADR 0001: In-memory store for weeks 1-3
 
-**Status:** Accepted
+**Status:** Accepted (temporary) — superseded in part by [ADR 0006](0006-sql-server-store.md)
 **Date:** 2026-10-23
 **Deciders:** backend
 

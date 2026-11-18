@@ -7,7 +7,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, status
 
 from ..config import Settings
-from ..presenters import prd_to_read
+from ..presenters import card_to_read, prd_to_read
 from ..schemas.actors import Actor
 from ..schemas.common import ErrorEnvelope
 from ..schemas.prds import (
@@ -19,7 +19,7 @@ from ..schemas.prds import (
 )
 from ..services import cards as card_service
 from ..services.breakdown import BreakdownService
-from ..store import InMemoryStore
+from ..repositories.factory import Repository
 from .deps import (
     get_breakdown_service,
     get_settings,
@@ -50,7 +50,7 @@ _ERRORS = {
 async def create_prd(
     payload: PRDCreate,
     actor: Annotated[Actor, Depends(require_human)],
-    store: Annotated[InMemoryStore, Depends(get_store)],
+    store: Annotated[Repository, Depends(get_store)],
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> PRDRead:
     record = card_service.create_prd(
@@ -61,9 +61,9 @@ async def create_prd(
 
 @router.get("/prds", response_model=PRDList, summary="List PRDs, newest first")
 async def list_prds(
-    store: Annotated[InMemoryStore, Depends(get_store)],
+    store: Annotated[Repository, Depends(get_store)],
 ) -> PRDList:
-    records = store.list_prds()
+    records = card_service.list_prds(store)
     return PRDList(
         items=[prd_to_read(store, record) for record in records],
         total=len(records),
@@ -78,7 +78,7 @@ async def list_prds(
 )
 async def get_prd(
     prd_id: str,
-    store: Annotated[InMemoryStore, Depends(get_store)],
+    store: Annotated[Repository, Depends(get_store)],
 ) -> PRDRead:
     record = card_service.get_prd_or_404(store, prd_id)
     return prd_to_read(store, record)
@@ -95,6 +95,18 @@ async def breakdown_prd(
     prd_id: str,
     actor: Annotated[Actor, Depends(require_human)],
     service: Annotated[BreakdownService, Depends(get_breakdown_service)],
+    store: Annotated[Repository, Depends(get_store)],
     payload: BreakdownRequest | None = None,
 ) -> BreakdownRead:
-    return await service.run(prd_id, actor, payload or BreakdownRequest())
+    result = await service.run(prd_id, actor, payload or BreakdownRequest())
+    return BreakdownRead(
+        prd_id=result.prd_id,
+        cards=[card_to_read(store, card) for card in result.cards],
+        model_used=result.model_used,
+        fallback_used=result.fallback_used,
+        prompt_version=result.prompt_version,
+        attempts=result.attempts,
+        usage=result.usage,
+        duration_ms=result.duration_ms,
+        warnings=result.warnings,
+    )

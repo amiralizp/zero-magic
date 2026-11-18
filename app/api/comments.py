@@ -11,7 +11,7 @@ from ..schemas.actors import Actor
 from ..schemas.cards import CommentCreate, CommentList, CommentRead
 from ..schemas.common import ErrorEnvelope
 from ..services import cards as card_service
-from ..store import InMemoryStore
+from ..repositories.factory import Repository
 from .deps import get_store, require_actor
 
 router = APIRouter(prefix="/api/v1/cards", tags=["comments"])
@@ -31,7 +31,7 @@ _ERRORS = {
 )
 async def list_comments(
     card_id: str,
-    store: Annotated[InMemoryStore, Depends(get_store)],
+    store: Annotated[Repository, Depends(get_store)],
 ) -> CommentList:
     records = card_service.list_comments(store, card_id)
     return CommentList(
@@ -51,7 +51,7 @@ async def add_comment(
     card_id: str,
     payload: CommentCreate,
     actor: Annotated[Actor, Depends(require_actor)],
-    store: Annotated[InMemoryStore, Depends(get_store)],
+    store: Annotated[Repository, Depends(get_store)],
 ) -> CommentRead:
     record = card_service.add_comment(store, actor, card_id, payload.body)
     return comment_to_read(store, record)

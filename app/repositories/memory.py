@@ -9,56 +9,25 @@ from __future__ import annotations
 
 import secrets
 import threading
-from dataclasses import dataclass, field, replace
+from dataclasses import replace
 from datetime import datetime, timezone
 
-from .actors import SEED_ACTORS
-from .schemas.actors import Actor
-from .schemas.cards import Stage
+from ..actors import SEED_ACTORS
+from ..records import CardRecord, CommentRecord, PRDRecord
+from ..schemas.actors import Actor
+from ..schemas.cards import Stage
+
+# Re-export so existing ``from app.store import CardRecord`` keeps working.
+__all__ = ["CardRecord", "CommentRecord", "PRDRecord", "InMemoryRepository", "utcnow"]
 
 
 def utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
-@dataclass
-class CardRecord:
-    id: str
-    title: str
-    goal: str
-    acceptance_criteria: list[str]
-    out_of_scope: list[str]
-    stage: Stage
-    assignee_id: str | None
-    created_by: str
-    prd_id: str | None
-    created_at: datetime
-    updated_at: datetime
-    version: int = 1
-    built_by: str | None = None
-    depends_on: list[str] = field(default_factory=list)
-
-
-@dataclass
-class CommentRecord:
-    id: str
-    card_id: str
-    author_id: str
-    body: str
-    created_at: datetime
-
-
-@dataclass
-class PRDRecord:
-    id: str
-    title: str
-    body: str
-    created_by: str
-    created_at: datetime
-
-
-class InMemoryStore:
+class InMemoryRepository:
     def __init__(self, actors: tuple[Actor, ...] = SEED_ACTORS) -> None:
+        self.kind = "memory"
         self._lock = threading.RLock()
         self.actors: dict[str, Actor] = {actor.id: actor for actor in actors}
         self.cards: dict[str, CardRecord] = {}

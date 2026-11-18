@@ -6,7 +6,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Response, status
 
-from ..errors import AppError
+from ..repositories.factory import Repository
 from ..presenters import card_to_read
 from ..schemas.actors import Actor
 from ..schemas.cards import (
@@ -19,7 +19,6 @@ from ..schemas.cards import (
 )
 from ..schemas.common import ErrorEnvelope
 from ..services import cards as card_service
-from ..store import InMemoryStore
 from .deps import get_store, require_actor, require_human
 
 router = APIRouter(prefix="/api/v1", tags=["cards"])
@@ -43,7 +42,7 @@ _ERRORS = {
 async def create_card(
     payload: CardCreate,
     actor: Annotated[Actor, Depends(require_human)],
-    store: Annotated[InMemoryStore, Depends(get_store)],
+    store: Annotated[Repository, Depends(get_store)],
 ) -> CardRead:
     record = card_service.create_card(store, actor, payload)
     return card_to_read(store, record)
@@ -51,18 +50,19 @@ async def create_card(
 
 @router.get("/cards", response_model=CardList, summary="List and filter cards")
 async def list_cards(
-    store: Annotated[InMemoryStore, Depends(get_store)],
+    store: Annotated[Repository, Depends(get_store)],
     stage: Stage | None = None,
     assignee: str | None = Query(default=None, description="Actor id"),
     q: str | None = Query(default=None, max_length=100, description="Title/goal text"),
     limit: int = Query(default=50, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
 ) -> CardList:
-    records = store.list_cards(stage=stage, assignee_id=assignee, query=q)
-    window = records[offset : offset + limit]
+    records, total = card_service.list_cards(
+        store, stage=stage, assignee_id=assignee, query=q, limit=limit, offset=offset
+    )
     return CardList(
-        items=[card_to_read(store, record) for record in window],
-        total=len(records),
+        items=[card_to_read(store, record) for record in records],
+        total=total,
         limit=limit,
         offset=offset,
     )
@@ -76,11 +76,9 @@ async def list_cards(
 )
 async def get_card(
     card_id: str,
-    store: Annotated[InMemoryStore, Depends(get_store)],
+    store: Annotated[Repository, Depends(get_store)],
 ) -> CardRead:
-    record = store.get_card(card_id)
-    if record is None:
-        raise AppError(404, "card_not_found", f"Card {card_id!r} does not exist.")
+    record = card_service.get_card_or_404(store, card_id)
     return card_to_read(store, record)
 
 
@@ -94,7 +92,7 @@ async def update_card(
     card_id: str,
     payload: CardUpdate,
     actor: Annotated[Actor, Depends(require_human)],
-    store: Annotated[InMemoryStore, Depends(get_store)],
+    store: Annotated[Repository, Depends(get_store)],
 ) -> CardRead:
     record = card_service.update_spec(store, actor, card_id, payload)
     return card_to_read(store, record)
@@ -109,7 +107,7 @@ async def update_card(
 async def delete_card(
     card_id: str,
     actor: Annotated[Actor, Depends(require_human)],
-    store: Annotated[InMemoryStore, Depends(get_store)],
+    store: Annotated[Repository, Depends(get_store)],
 ) -> Response:
     card_service.delete_card(store, actor, card_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -125,7 +123,7 @@ async def transition_card(
     card_id: str,
     payload: TransitionRequest,
     actor: Annotated[Actor, Depends(require_actor)],
-    store: Annotated[InMemoryStore, Depends(get_store)],
+    store: Annotated[Repository, Depends(get_store)],
 ) -> CardRead:
     record = card_service.transition_card(store, actor, card_id, payload)
     return card_to_read(store, record)

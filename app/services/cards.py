@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 from ..config import Settings
-from ..errors import AppError
+from ..repositories.factory import Repository
+from ..domain_errors import AppError
 from ..schemas.actors import Actor, ActorRole
 from ..schemas.cards import CardCreate, CardUpdate, Stage, TransitionRequest
-from ..store import CardRecord, CommentRecord, InMemoryStore, PRDRecord
+from ..records import CardRecord, CommentRecord, PRDRecord
 
 # The funnel's legal edges. Everything else is a 409, not a silent correction.
 ALLOWED_TRANSITIONS: dict[Stage, frozenset[Stage]] = {
@@ -34,11 +35,38 @@ HUMAN_ONLY_TRANSITIONS: frozenset[tuple[Stage, Stage]] = frozenset(
 )
 
 
-def _card_or_404(store: InMemoryStore, card_id: str) -> CardRecord:
+def get_card_or_404(store: Repository, card_id: str) -> CardRecord:
     card = store.get_card(card_id)
     if card is None:
         raise AppError(404, "card_not_found", f"Card {card_id!r} does not exist.")
     return card
+
+
+# Backwards-compatible alias for internal callers.
+_card_or_404 = get_card_or_404
+
+
+def list_cards(
+    store: Repository,
+    *,
+    stage: Stage | None = None,
+    assignee_id: str | None = None,
+    query: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> tuple[list[CardRecord], int]:
+    records = store.list_cards(stage=stage, assignee_id=assignee_id, query=query)
+    total = len(records)
+    window = records[offset : offset + limit]
+    return window, total
+
+
+def list_prds(store: Repository) -> list[PRDRecord]:
+    return store.list_prds()
+
+
+def list_actors(store: Repository) -> list[Actor]:
+    return store.list_actors()
 
 
 def _require_human(actor: Actor, action: str) -> None:
@@ -50,7 +78,7 @@ def _require_human(actor: Actor, action: str) -> None:
         )
 
 
-def _ensure_assignee(store: InMemoryStore, assignee_id: str | None) -> None:
+def _ensure_assignee(store: Repository, assignee_id: str | None) -> None:
     if assignee_id is not None and store.get_actor(assignee_id) is None:
         raise AppError(
             422,
@@ -60,7 +88,7 @@ def _ensure_assignee(store: InMemoryStore, assignee_id: str | None) -> None:
 
 
 def create_card(
-    store: InMemoryStore, actor: Actor, payload: CardCreate
+    store: Repository, actor: Actor, payload: CardCreate
 ) -> CardRecord:
     _require_human(actor, "create a card")
     _ensure_assignee(store, payload.assignee_id)
@@ -75,7 +103,7 @@ def create_card(
 
 
 def update_spec(
-    store: InMemoryStore, actor: Actor, card_id: str, payload: CardUpdate
+    store: Repository, actor: Actor, card_id: str, payload: CardUpdate
 ) -> CardRecord:
     _require_human(actor, "edit a card spec")
     card = _card_or_404(store, card_id)
@@ -90,7 +118,7 @@ def update_spec(
     return store.update_card(card_id, actor_id=actor.id, **changes)
 
 
-def delete_card(store: InMemoryStore, actor: Actor, card_id: str) -> None:
+def delete_card(store: Repository, actor: Actor, card_id: str) -> None:
     _require_human(actor, "delete a card")
     _card_or_404(store, card_id)
     store.delete_card(card_id)
@@ -98,7 +126,7 @@ def delete_card(store: InMemoryStore, actor: Actor, card_id: str) -> None:
 
 
 def transition_card(
-    store: InMemoryStore,
+    store: Repository,
     actor: Actor,
     card_id: str,
     payload: TransitionRequest,
@@ -171,7 +199,7 @@ def transition_card(
 
 
 def assign_card(
-    store: InMemoryStore, actor: Actor, card_id: str, assignee_id: str | None
+    store: Repository, actor: Actor, card_id: str, assignee_id: str | None
 ) -> CardRecord:
     _require_human(actor, "assign a card")
     card = _card_or_404(store, card_id)
@@ -193,19 +221,19 @@ def assign_card(
 
 
 def add_comment(
-    store: InMemoryStore, actor: Actor, card_id: str, body: str
+    store: Repository, actor: Actor, card_id: str, body: str
 ) -> CommentRecord:
     _card_or_404(store, card_id)
     return store.create_comment(card_id=card_id, author_id=actor.id, body=body)
 
 
-def list_comments(store: InMemoryStore, card_id: str) -> list[CommentRecord]:
+def list_comments(store: Repository, card_id: str) -> list[CommentRecord]:
     _card_or_404(store, card_id)
     return store.list_comments(card_id)
 
 
 def create_prd(
-    store: InMemoryStore, settings: Settings, actor: Actor, *, title: str, body: str
+    store: Repository, settings: Settings, actor: Actor, *, title: str, body: str
 ) -> PRDRecord:
     _require_human(actor, "create a PRD")
     if len(body) > settings.max_prd_chars:
@@ -218,7 +246,7 @@ def create_prd(
     return store.create_prd(title=title, body=body, created_by=actor.id)
 
 
-def get_prd_or_404(store: InMemoryStore, prd_id: str) -> PRDRecord:
+def get_prd_or_404(store: Repository, prd_id: str) -> PRDRecord:
     prd = store.get_prd(prd_id)
     if prd is None:
         raise AppError(404, "prd_not_found", f"PRD {prd_id!r} does not exist.")

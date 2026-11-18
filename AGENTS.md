@@ -11,9 +11,11 @@ validate, agents build. Week 3 adds PRD-to-cards breakdown with a model that is
 validated, retried, rate-limited and scored. A build-free console at `/console`
 exercises the same HTTP API.
 
-Not present yet: database, Docker, authentication, the week-4 frontend. The
-console in `app/web/` is a convenience page, not that frontend; do not add a
-bundler or a new dependency for it.
+Not present yet: Docker, authentication, the week-4 frontend, PostgreSQL. Persistence is
+SQL Server when `DB_USER` is set and the in-memory repository otherwise; both live
+behind one interface (`app/repositories/factory.py` picks). The console in `app/web/` is a
+convenience page, not that frontend; do not add a bundler or a new dependency
+for it.
 
 ## Commands
 
@@ -68,7 +70,9 @@ BUG-001 in `docs/test-plan.md`).
 | App factory, middleware, routers | `app/main.py` |
 | Settings from env | `app/config.py` |
 | Error types and handlers | `app/errors.py` |
-| In-memory store and audit log | `app/store.py` |
+| In-memory repository and audit log | `app/repositories/memory.py` |
+| SQL Server repository, schema, pool | `app/repositories/sql_server.py` |
+| Repository selection from settings | `app/repositories/factory.py` |
 | Seeded actors | `app/actors.py` |
 | Record -> public model | `app/presenters.py` |
 | Actor identity and dependencies | `app/api/deps.py` |
@@ -87,7 +91,7 @@ BUG-001 in `docs/test-plan.md`).
 | Specs | `specs/` |
 | Decisions | `docs/adr/` |
 
-Dependency direction is one way: HTTP -> services -> store/AI -> schemas.
+Dependency direction is one way: HTTP -> services -> repository/AI -> schemas.
 Schemas import nothing from the app except other schemas. The AI layer must not
 read the store or build HTTP responses.
 
@@ -103,6 +107,8 @@ read the store or build HTTP responses.
 - Keep the eval gate green. A prompt change that lowers validity is a
   regression, even if the average score rises.
 - Run the full suite before finishing: `python -m pytest`.
+- The suite must never require SQL Server. Tests use the in-memory store; the
+  SQL path is checked by hand against a real server.
 
 ## Style
 
@@ -125,3 +131,39 @@ read the store or build HTTP responses.
 | Limit or setting | `README.md`, `.env.example`, `docs/architecture.md` |
 | New decision with trade-offs | a new ADR in `docs/adr/` |
 | Console page or asset | `README.md`, `tests/test_console.py` |
+
+## Architecture rules (target for week 4; see docs/architecture.md section 3.1)
+
+Read docs/architecture.md and docs/adr/ before changing structure. Dependencies
+point one way: HTTP (app/api) -> Service (app/services) -> Repository
+(app/repositories) -> database. Until the S8 refactor the code does not follow
+this everywhere; docs/critique.md lists the violations. New code must follow it.
+
+- HTTP: receives the request, checks its shape, identifies the caller, maps the
+  result to a response. No business rule, no repository call, no SQL.
+- Service: owns every rule, including roles. Never import fastapi, starlette,
+  app.api, app.presenters or a SQL driver. Do not name a concrete database.
+- Repository: the only layer that touches tables. No business rule, no role
+  check. Never import services or api.
+- AI layer: talks to models only. Never reads the repository.
+- AppError lives in a module without a web framework import.
+- Authentication (who are you) is HTTP; authorization (what may you do) is
+  checked in services on every call.
+
+Never edit or weaken a test to make it pass. If a test and a rule disagree, stop
+and ask. Do not read, print or edit .env; never commit .env, backups/ or *.bak.
+Do not change the public error codes or status codes: they are the contract.
+Make one small change at a time and run `pytest -q` after each module.
+
+## Git protocol (follow exactly)
+
+- Work only on a branch named step/<ID>-<slug> (example: step/S4-architecture). Never commit to main.
+- Do ONE roadmap step per session, then stop and wait for me.
+- Before any commit run `pytest -q`. If anything is red, stop and report.
+- Stage specific files only: `git add <path>`. Never `git add .` or `git add -A`.
+- Never stage .env, backups/, .venv, *.bak, *.log.
+- Before committing, show me: `git status`, `git diff --stat` and the proposed commit message. Wait for my OK.
+- Commit message format: type(scope): short summary. Types: feat, fix, refactor, test, docs, chore.
+- After the commit, tick the step in docs/ROADMAP.md.
+- Never push, merge, rebase, `reset --hard` or force-push unless I explicitly say so.
+- Never edit a test just to make it pass.
