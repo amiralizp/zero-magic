@@ -17,7 +17,7 @@ from pydantic import ValidationError
 
 from ..db import Store
 from ..domain_errors import AppError
-from ..presenters import card_to_read
+# card_to_read no longer imported; _brief builds from the record directly.
 from ..schemas.actors import Actor
 from ..schemas.cards import CardCreate, CardUpdate, Stage, TransitionRequest
 from ..records import CardRecord
@@ -239,15 +239,14 @@ def _resolve(store: Store, ref: str) -> CardRecord:
     raise AppError(404, "card_not_found", f"No card matches {ref!r}.")
 
 
-def _brief(store: Store, record: CardRecord) -> dict[str, Any]:
-    public = card_to_read(store, record).model_dump(mode="json")
+def _brief(record: CardRecord) -> dict[str, Any]:
     return {
-        "id": public["id"],
-        "title": public["title"],
-        "stage": public["stage"],
-        "goal": public["goal"],
-        "acceptance_criteria": public["acceptance_criteria"],
-        "assignee": (public["assignee"] or {}).get("id"),
+        "id": record.id,
+        "title": record.title,
+        "stage": record.stage.value,
+        "goal": record.goal,
+        "acceptance_criteria": record.acceptance_criteria,
+        "assignee": record.assignee_id,
     }
 
 
@@ -318,7 +317,7 @@ def _execute(
             "ok": True,
             "summary": f"Created spec {record.id} “{record.title}”.",
             "card_id": record.id,
-            "card": _brief(store, record),
+            "card": _brief(record),
             "view": "board",
         }
 
@@ -339,7 +338,7 @@ def _execute(
             "ok": True,
             "summary": f"Updated spec {record.id}.",
             "card_id": record.id,
-            "card": _brief(store, record),
+            "card": _brief(record),
             "view": "board",
         }
 
@@ -359,7 +358,7 @@ def _execute(
             "ok": True,
             "summary": f"Moved {record.id} to {record.stage.value}.",
             "card_id": record.id,
-            "card": _brief(store, record),
+            "card": _brief(record),
             "view": "board",
         }
 

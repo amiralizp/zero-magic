@@ -295,6 +295,30 @@ def test_chat_router_does_not_call_store_methods():
                 )
 
 
+def test_services_do_not_import_presenters():
+    import ast
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parent.parent
+    for path in (root / "app" / "services").rglob("*.py"):
+        rel = path.relative_to(root).as_posix()
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    if alias.name == "app.presenters" or alias.name.startswith("app.presenters"):
+                        raise AssertionError(f"{rel}:{node.lineno}: imports {alias.name}")
+                    if alias.name == ".presenters" or alias.name == "presenters":
+                        raise AssertionError(f"{rel}:{node.lineno}: imports {alias.name}")
+            if isinstance(node, ast.ImportFrom):
+                mod = node.module or ""
+                if mod == "app.presenters" or mod.startswith("app.presenters"):
+                    raise AssertionError(f"{rel}:{node.lineno}: imports from {mod}")
+                # relative imports: from ..presenters import ...
+                if node.level > 0 and mod == "presenters":
+                    raise AssertionError(f"{rel}:{node.lineno}: imports from .presenters")
+
+
 def test_backup_service_is_framework_and_sql_free():
     import ast
     from pathlib import Path

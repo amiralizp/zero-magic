@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import time
 from collections.abc import Iterable
+from dataclasses import dataclass
 
 from pydantic import ValidationError
 
@@ -19,7 +20,6 @@ from ..ai.safety import neutralize, scan_injection
 from ..ai.tokens import estimate_cost
 from ..config import Settings
 from ..domain_errors import AppError
-from ..presenters import card_to_read
 from ..rate_limit import SlidingWindowLimiter
 from ..schemas.actors import Actor, ActorRole
 from ..schemas.prds import (
@@ -56,6 +56,19 @@ def _validate_output(breakdown: Breakdown, max_cards: int) -> None:
         raise ValueError("output echoed instruction-like text from the PRD")
 
 
+@dataclass
+class BreakdownResult:
+    prd_id: str
+    cards: list  # list[CardRecord]
+    model_used: str
+    fallback_used: bool
+    prompt_version: str
+    attempts: int
+    usage: Usage
+    duration_ms: int
+    warnings: list[str]
+
+
 class BreakdownService:
     def __init__(
         self,
@@ -74,7 +87,7 @@ class BreakdownService:
         prd_id: str,
         actor: Actor,
         request: BreakdownRequest,
-    ) -> BreakdownRead:
+    ) -> BreakdownResult:
         if actor.role is not ActorRole.HUMAN:
             raise AppError(
                 403, "human_only", "Only a human may request a PRD breakdown."
@@ -202,9 +215,9 @@ class BreakdownService:
             warnings.append(f"model_attempts:{attempts}")
         warnings = list(dict.fromkeys(warnings))
 
-        return BreakdownRead(
+        return BreakdownResult(
             prd_id=prd.id,
-            cards=[card_to_read(self.store, card) for card in created],
+            cards=created,
             model_used=winner_name,
             fallback_used=fallback_used,
             prompt_version=prompt.key,

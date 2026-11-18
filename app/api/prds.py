@@ -7,7 +7,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, status
 
 from ..config import Settings
-from ..presenters import prd_to_read
+from ..presenters import card_to_read, prd_to_read
 from ..schemas.actors import Actor
 from ..schemas.common import ErrorEnvelope
 from ..schemas.prds import (
@@ -95,6 +95,18 @@ async def breakdown_prd(
     prd_id: str,
     actor: Annotated[Actor, Depends(require_human)],
     service: Annotated[BreakdownService, Depends(get_breakdown_service)],
+    store: Annotated[Store, Depends(get_store)],
     payload: BreakdownRequest | None = None,
 ) -> BreakdownRead:
-    return await service.run(prd_id, actor, payload or BreakdownRequest())
+    result = await service.run(prd_id, actor, payload or BreakdownRequest())
+    return BreakdownRead(
+        prd_id=result.prd_id,
+        cards=[card_to_read(store, card) for card in result.cards],
+        model_used=result.model_used,
+        fallback_used=result.fallback_used,
+        prompt_version=result.prompt_version,
+        attempts=result.attempts,
+        usage=result.usage,
+        duration_ms=result.duration_ms,
+        warnings=result.warnings,
+    )
