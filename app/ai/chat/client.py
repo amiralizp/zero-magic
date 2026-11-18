@@ -17,6 +17,7 @@ from typing import Any, AsyncGenerator
 import httpx
 
 from ...config import Settings
+from .errors import ChatUpstreamError
 
 DEFAULT_TIMEOUT = 30.0
 STREAM_TIMEOUT = 300.0
@@ -28,6 +29,23 @@ class ChatAuthError(RuntimeError):
 
 class ChatBlockedError(RuntimeError):
     """The request was refused before auth: a network or region block."""
+
+
+def _to_upstream_error(exc: httpx.HTTPError) -> "ChatUpstreamError":
+    from .errors import ChatUpstreamError
+
+    if isinstance(exc, httpx.HTTPStatusError):
+        status = exc.response.status_code
+        try:
+            detail = exc.response.text[:400]
+        except Exception:  # noqa: BLE001 - best effort
+            detail = ""
+        return ChatUpstreamError(status=status, kind="http_status", detail=detail)
+    if isinstance(exc, (httpx.ConnectTimeout, httpx.ReadTimeout, httpx.WriteTimeout, httpx.PoolTimeout)):
+        return ChatUpstreamError(status=None, kind="timeout", detail=str(exc))
+    if isinstance(exc, httpx.ConnectError):
+        return ChatUpstreamError(status=None, kind="connection", detail=str(exc))
+    return ChatUpstreamError(status=None, kind="connection", detail=str(exc))
 
 
 class ChatClient:
@@ -55,14 +73,17 @@ class ChatClient:
         """
         if not self.api_key:
             raise ChatAuthError(f"CHAT_API_KEY for {self.provider} is not configured.")
-        async with httpx.AsyncClient(timeout=DEFAULT_TIMEOUT) as client:
-            response = await client.get(self.models_url, headers=self.headers)
-            if response.status_code == 401:
-                raise ChatAuthError(f"{self.provider} rejected CHAT_API_KEY.")
-            if response.status_code == 403:
-                raise ChatBlockedError(f"{self.provider} returned 403 Forbidden.")
-            response.raise_for_status()
-            data = response.json()
+        try:
+            async with httpx.AsyncClient(timeout=DEFAULT_TIMEOUT) as client:
+                response = await client.get(self.models_url, headers=self.headers)
+                if response.status_code == 401:
+                    raise ChatAuthError(f"{self.provider} rejected CHAT_API_KEY.")
+                if response.status_code == 403:
+                    raise ChatBlockedError(f"{self.provider} returned 403 Forbidden.")
+                response.raise_for_status()
+                data = response.json()
+        except httpx.HTTPError as exc:
+            raise _to_upstream_error(exc) from exc
         models = sorted(entry["id"] for entry in data.get("data", []) if "id" in entry)
         return models or [self.default_model]
 
@@ -85,14 +106,17 @@ class ChatClient:
         }
         if tools:
             payload["tools"] = tools
-        async with httpx.AsyncClient(timeout=STREAM_TIMEOUT) as client:
-            response = await client.post(
-                f"{self.base_url}/chat/completions",
-                headers=self.headers,
-                json=payload,
-            )
-            response.raise_for_status()
-            data = response.json()
+        try:
+            async with httpx.AsyncClient(timeout=STREAM_TIMEOUT) as client:
+                response = await client.post(
+                    f"{self.base_url}/chat/completions",
+                    headers=self.headers,
+                    json=payload,
+                )
+                response.raise_for_status()
+                data = response.json()
+        except httpx.HTTPError as exc:
+            raise _to_upstream_error(exc) from exc
         choices = data.get("choices") or []
         if not choices or not isinstance(choices[0], dict):
             raise RuntimeError(f"{self.provider} returned no completion.")

@@ -14,11 +14,10 @@ from __future__ import annotations
 import json
 from typing import Annotated, Any
 
-import httpx
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
 
-from ..ai.chat.client import ChatAuthError, ChatBlockedError, ChatClient
+from ..ai.chat.client import ChatAuthError, ChatBlockedError, ChatClient, ChatUpstreamError
 from ..config import Settings
 from ..errors import AppError
 from ..schemas.actors import Actor
@@ -67,11 +66,11 @@ async def list_models(settings: Annotated[Settings, Depends(get_settings)]) -> d
         raise AppError(status_code=401, code="chat_key_rejected", message=_key_hint(settings)) from exc
     except ChatBlockedError as exc:
         raise AppError(status_code=502, code="chat_blocked", message=_blocked_hint(settings)) from exc
-    except httpx.HTTPError as exc:
+    except ChatUpstreamError as exc:
         raise AppError(
             status_code=502,
             code="chat_unreachable",
-            message=f"Could not reach {settings.chat_provider}: {exc.__class__.__name__}.",
+            message=f"Could not reach {settings.chat_provider}: {exc.kind}.",
         ) from exc
     return {"models": models, "default": settings.chat_model}
 
@@ -158,16 +157,16 @@ async def chat_completions(
                     chunk = {"choices": [{"delta": {"content": event["text"]}}]}
                     yield f"data: {json.dumps(chunk)}\n\n"
             yield "data: [DONE]\n\n"
-        except httpx.HTTPStatusError as exc:
-            status = exc.response.status_code
-            hint = chat_policy.upstream_hint(settings, status)
-            if hint is not None:
-                yield _error_frame(hint)
+        except ChatUpstreamError as exc:
+            status = exc.status
+            if status is not None:
+                hint = chat_policy.upstream_hint(settings, status)
+                if hint is not None:
+                    yield _error_frame(hint)
+                    return
+                yield _error_frame(f"{settings.chat_provider} error {status}: {exc.detail}")
                 return
-            # The body of a streaming error response is not read yet.
-            detail = await exc.response.aread()
-            text = detail.decode("utf-8", "replace")[:400]
-            yield _error_frame(f"{settings.chat_provider} error {status}: {text}")
+            yield _error_frame(str(exc) or exc.__class__.__name__)
         except Exception as exc:  # noqa: BLE001 - surfaced to the browser as a frame
             yield _error_frame(str(exc) or exc.__class__.__name__)
 

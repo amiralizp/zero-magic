@@ -46,10 +46,10 @@ def test_missing_key_completions_endpoint():
 
 
 def _upstream_test(monkeypatch, status):
+    from app.ai.chat.errors import ChatUpstreamError
+
     async def fake_complete(self, messages, model=None, temperature=0.7, max_tokens=2048, tools=None):
-        request = httpx.Request("POST", "https://api.example.com/chat/completions")
-        response = httpx.Response(status, request=request, text="boom")
-        raise httpx.HTTPStatusError("upstream", request=request, response=response)
+        raise ChatUpstreamError(status=status, kind="http_status", detail="boom")
 
     monkeypatch.setattr(chat_api.ChatClient, "complete", fake_complete)
     client = make_client(chat_api_key="test-key")
