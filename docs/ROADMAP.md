@@ -119,6 +119,8 @@
     - [x] S8.4 meta via Depends(get_store), no app.state access
     - [ ] S8.5 chat: strict request schema, chat service, fix the 500 on a bad
           temperature (write the failing test first)
+    - [x] S8.5a chat request schema, 500 on a bad temperature fixed (step/S8-5a-chat-schema)
+    - [ ] S8.5b chat service for the key check and upstream error hints
     - [ ] S8.6 backup behind services (layer move only)
     - [ ] S8.7 services stop importing presenters
     - [ ] S8.8 rename store to repositories, remove the xfail marker
