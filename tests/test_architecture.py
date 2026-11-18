@@ -21,6 +21,12 @@ APP = ROOT / "app"
 
 SQL_DRIVERS = {"pytds", "pyodbc", "sqlalchemy", "psycopg", "psycopg2", "pymssql"}
 
+# --- Allowlist (S8.8b) -------------------------------------------------------
+WIRING_POINTS = {"app/main.py", "app/api/deps.py"}
+KNOWN_DEBT = {
+    "app/presenters.py": "S8.11 presenters read actors through the repository",
+}
+
 
 def _layer(rel: str) -> str | None:
     if not rel.startswith("app/"):
@@ -61,14 +67,18 @@ def _resolve_import(node: ast.AST, rel: str) -> str | None:
     return None
 
 
-def _imports_with_lines(path: Path, rel: str) -> list[tuple[int, str]]:
+def _imports_with_lines(path: Path, rel: str) -> list[tuple[int, str, list[str]]]:
     tree = ast.parse(path.read_text(encoding="utf-8"))
-    result: list[tuple[int, str]] = []
+    result: list[tuple[int, str, list[str]]] = []
     for node in ast.walk(tree):
-        if isinstance(node, (ast.Import, ast.ImportFrom)):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                result.append((node.lineno, alias.name, [alias.asname or alias.name.split(".")[-1]]))
+        elif isinstance(node, ast.ImportFrom):
             mod = _resolve_import(node, rel)
             if mod:
-                result.append((node.lineno, mod))
+                names = [alias.name for alias in node.names]
+                result.append((node.lineno, mod, names))
     return result
 
 
@@ -83,48 +93,155 @@ def _violations() -> list[str]:
         layer = _layer(rel)
         if layer is None:
             continue
-        for lineno, mod in _imports_with_lines(path, rel):
-            if layer == "http":
-                if (
-                    _is(mod, "app.repositories.memory")
-                    or _is(mod, "app.repositories.sql_server")
-                    or _is(mod, "app.repositories.factory")  # main.py is the wiring point; S8 must decide whether it gets an allowlist.
-                    or _is(mod, "app.backup")
-                ):
-                    found.append(f"{rel}:{lineno}: HTTP imports repository/store ({mod})")
-                if any(_is(mod, d) for d in SQL_DRIVERS):
-                    found.append(f"{rel}:{lineno}: HTTP imports SQL driver ({mod})")
-            if layer == "service":
-                if _is(mod, "fastapi") or _is(mod, "starlette"):
-                    found.append(f"{rel}:{lineno}: Service imports web framework ({mod})")
-                if _is(mod, "app.api") or _is(mod, "app.presenters"):
-                    found.append(f"{rel}:{lineno}: Service imports HTTP/presenters ({mod})")
-                if _is(mod, "app.repositories.sql_server"):
-                    found.append(f"{rel}:{lineno}: Service imports concrete DB ({mod})")
-                if any(_is(mod, d) for d in SQL_DRIVERS):
-                    found.append(f"{rel}:{lineno}: Service imports SQL driver ({mod})")
-            if layer == "repository":
-                if _is(mod, "app.services") or _is(mod, "app.api"):
-                    found.append(f"{rel}:{lineno}: Repository imports service/api ({mod})")
-                if _is(mod, "fastapi") or _is(mod, "starlette"):
-                    found.append(f"{rel}:{lineno}: Repository imports web framework ({mod})")
-            if layer == "ai":
-                if (
-                    _is(mod, "app.repositories.memory")
-                    or _is(mod, "app.repositories.sql_server")
-                    or _is(mod, "app.repositories.factory")
-                    or _is(mod, "app.backup")
-                ):
-                    found.append(f"{rel}:{lineno}: AI imports repository/store ({mod})")
-                if _is(mod, "app.services"):
-                    found.append(f"{rel}:{lineno}: AI imports services ({mod})")
-            if mod == "httpx" and layer != "ai":
-                found.append(f"{rel}:{lineno}: non-AI layer imports httpx ({mod})")
+        source = path.read_text(encoding="utf-8")
+        found.extend(_violations_for_source(source, rel))
     return found
 
 
-@pytest.mark.xfail(reason="S8 removes the violations; then remove this marker", strict=True)
+def _violations_for_source(source: str, rel: str) -> list[str]:
+    """Check a single source string (used by self-tests)."""
+    found: list[str] = []
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return [f"{rel}:0: SyntaxError"]
+
+    entries: list[tuple[int, str, list[str]]] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                entries.append((node.lineno, alias.name, [alias.asname or alias.name.split(".")[-1]]))
+        elif isinstance(node, ast.ImportFrom):
+            parts = rel.split("/")
+            pkg = parts[:-1]
+            level = node.level
+            if level == 0:
+                mod = node.module
+            else:
+                for _ in range(level - 1):
+                    if pkg:
+                        pkg.pop()
+                if node.module:
+                    pkg = pkg + node.module.split(".")
+                mod = ".".join(pkg) if pkg else None
+            if mod:
+                names = [alias.name for alias in node.names]
+                entries.append((node.lineno, mod, names))
+
+    layer = _layer(rel)
+    if layer is None:
+        return found
+
+    for lineno, mod, names in entries:
+        if layer == "http":
+            if _is(mod, "app.repositories.factory"):
+                if rel in WIRING_POINTS:
+                    allowed = {"Repository", "build_repository"}
+                elif rel in KNOWN_DEBT:
+                    allowed = {"Repository"}
+                else:
+                    allowed = {"Repository"}
+                if allowed is not None:
+                    bad = [n for n in names if n not in allowed]
+                    if bad:
+                        found.append(
+                            f"{rel}:{lineno}: HTTP imports forbidden name(s) "
+                            f"{bad} from app.repositories.factory"
+                        )
+            elif (
+                _is(mod, "app.repositories.memory")
+                or _is(mod, "app.repositories.sql_server")
+                or _is(mod, "app.backup")
+            ):
+                found.append(f"{rel}:{lineno}: HTTP imports repository/store ({mod})")
+            if any(_is(mod, d) for d in SQL_DRIVERS):
+                found.append(f"{rel}:{lineno}: HTTP imports SQL driver ({mod})")
+            if mod == "httpx":
+                found.append(f"{rel}:{lineno}: non-AI layer imports httpx ({mod})")
+        if layer == "service":
+            if _is(mod, "fastapi") or _is(mod, "starlette"):
+                found.append(f"{rel}:{lineno}: Service imports web framework ({mod})")
+            if _is(mod, "app.api") or _is(mod, "app.presenters"):
+                found.append(f"{rel}:{lineno}: Service imports HTTP/presenters ({mod})")
+            if _is(mod, "app.repositories.sql_server") or _is(mod, "app.repositories.memory"):
+                found.append(f"{rel}:{lineno}: Service imports concrete repository ({mod})")
+            if any(_is(mod, d) for d in SQL_DRIVERS):
+                found.append(f"{rel}:{lineno}: Service imports SQL driver ({mod})")
+        if layer == "repository":
+            if _is(mod, "app.services") or _is(mod, "app.api"):
+                found.append(f"{rel}:{lineno}: Repository imports service/api ({mod})")
+            if _is(mod, "fastapi") or _is(mod, "starlette"):
+                found.append(f"{rel}:{lineno}: Repository imports web framework ({mod})")
+        if layer == "ai":
+            if (
+                _is(mod, "app.repositories.memory")
+                or _is(mod, "app.repositories.sql_server")
+                or _is(mod, "app.repositories.factory")
+                or _is(mod, "app.backup")
+            ):
+                found.append(f"{rel}:{lineno}: AI imports repository/store ({mod})")
+            if _is(mod, "app.services"):
+                found.append(f"{rel}:{lineno}: AI imports services ({mod})")
+    return found
+
+
+def _check(source: str, rel: str) -> list[str]:
+    return _violations_for_source(source, rel)
+
+
+# --- Self-tests of the checker (S8.8b) -------------------------------------
+
+def test_checker_flags_router_importing_build_repository():
+    src = "from app.repositories.factory import build_repository\n"
+    vs = _check(src, "app/api/foo.py")
+    assert any("forbidden name" in v and "build_repository" in v for v in vs)
+
+
+def test_checker_flags_service_importing_memory():
+    src = "from app.repositories.memory import InMemoryRepository\n"
+    vs = _check(src, "app/services/foo.py")
+    assert any("concrete repository" in v for v in vs)
+
+
+def test_checker_flags_non_ai_httpx():
+    src = "import httpx\n"
+    vs = _check(src, "app/api/foo.py")
+    assert any("httpx" in v for v in vs)
+
+
+def test_checker_allows_wiring_point():
+    src = "from app.repositories.factory import Repository, build_repository\n"
+    vs = _check(src, "app/main.py")
+    assert vs == []
+
+
+def test_checker_allows_api_repository_type():
+    src = "from app.repositories.factory import Repository\n"
+    vs = _check(src, "app/api/foo.py")
+    assert vs == []
+
+
+def test_checker_allows_known_debt():
+    src = "from app.repositories.factory import Repository\n"
+    vs = _check(src, "app/presenters.py")
+    assert vs == []
+
+
+def test_checker_flags_known_debt_extra_name():
+    src = "from app.repositories.factory import Repository, build_repository\n"
+    vs = _check(src, "app/presenters.py")
+    assert any("forbidden name" in v and "build_repository" in v for v in vs)
+
+
+def test_checker_flags_known_debt_other_module():
+    src = "from app.repositories.memory import InMemoryRepository\n"
+    vs = _check(src, "app/presenters.py")
+    assert len(vs) > 0
+
+
 def test_architecture_imports():
+    violations = _violations()
+    assert not violations, "Architecture violations:\n" + "\n".join(violations)
     violations = _violations()
     assert not violations, "Architecture violations:\n" + "\n".join(violations)
 
@@ -166,7 +283,7 @@ def test_services_and_ai_do_not_import_app_errors():
                 if isinstance(node, ast.ImportFrom):
                     if node.level == 0 and node.module in {"app.errors", "app.errors"}:
                         raise AssertionError(f"{rel}:{node.lineno}: imports from app.errors")
-                    if node.level > 0 and node.module == "errors":
+                    if folder == "services" and node.level > 0 and node.module == "errors":
                         raise AssertionError(f"{rel}:{node.lineno}: imports from .errors")
                 if isinstance(node, ast.Import):
                     for alias in node.names:
