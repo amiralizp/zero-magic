@@ -1,7 +1,7 @@
 """Neutral data records shared by both store implementations.
 
 These are plain dataclasses with no behaviour, no validation and no framework
-imports (ADR 0007). Both ``InMemoryStore`` and ``SqlServerStore`` build and
+imports (ADR 0007). Both ``InMemoryRepository`` and ``SqlServerRepository`` build and
 read them, so they live in a module neither store needs to import the other
 from.
 """

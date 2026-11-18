@@ -13,7 +13,7 @@ from ..schemas.actors import ActorList
 from ..schemas.cards import STAGE_ORDER
 from ..services import cards as card_service
 from ..services.cards import ALLOWED_TRANSITIONS, HUMAN_ONLY_TRANSITIONS
-from ..db import Store
+from ..repositories.factory import Repository
 from .deps import get_registry, get_settings, get_store
 
 router = APIRouter(prefix="/api/v1", tags=["meta"])
@@ -22,7 +22,7 @@ router = APIRouter(prefix="/api/v1", tags=["meta"])
 @router.get("/health", summary="Liveness")
 async def health(
     settings: Annotated[Settings, Depends(get_settings)],
-    store: Annotated[Store, Depends(get_store)],
+    store: Annotated[Repository, Depends(get_store)],
 ) -> dict[str, str]:
     return {
         "status": "ok",
@@ -34,7 +34,7 @@ async def health(
 
 @router.get("/actors", response_model=ActorList, summary="List seeded actors")
 async def actors(
-    store: Annotated[Store, Depends(get_store)],
+    store: Annotated[Repository, Depends(get_store)],
 ) -> ActorList:
     items = card_service.list_actors(store)
     return ActorList(items=items, total=len(items))

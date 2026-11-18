@@ -33,7 +33,9 @@ def _layer(rel: str) -> str | None:
         return "service"
     if top == "ai":
         return "ai"
-    if top in {"store.py", "store_sql.py", "db.py", "backup.py"} and len(parts) == 1:
+    if top == "repositories" and len(parts) == 2 and parts[1] in {"memory.py", "sql_server.py", "factory.py"}:
+        return "repository"
+    if top == "backup.py" and len(parts) == 1:
         return "repository"
     if top in {"main.py", "presenters.py"}:
         return "http"
@@ -84,9 +86,9 @@ def _violations() -> list[str]:
         for lineno, mod in _imports_with_lines(path, rel):
             if layer == "http":
                 if (
-                    _is(mod, "app.store")
-                    or _is(mod, "app.store_sql")
-                    or _is(mod, "app.db")  # main.py is the wiring point; S8 must decide whether it gets an allowlist.
+                    _is(mod, "app.repositories.memory")
+                    or _is(mod, "app.repositories.sql_server")
+                    or _is(mod, "app.repositories.factory")  # main.py is the wiring point; S8 must decide whether it gets an allowlist.
                     or _is(mod, "app.backup")
                 ):
                     found.append(f"{rel}:{lineno}: HTTP imports repository/store ({mod})")
@@ -97,7 +99,7 @@ def _violations() -> list[str]:
                     found.append(f"{rel}:{lineno}: Service imports web framework ({mod})")
                 if _is(mod, "app.api") or _is(mod, "app.presenters"):
                     found.append(f"{rel}:{lineno}: Service imports HTTP/presenters ({mod})")
-                if _is(mod, "app.store_sql"):
+                if _is(mod, "app.repositories.sql_server"):
                     found.append(f"{rel}:{lineno}: Service imports concrete DB ({mod})")
                 if any(_is(mod, d) for d in SQL_DRIVERS):
                     found.append(f"{rel}:{lineno}: Service imports SQL driver ({mod})")
@@ -108,9 +110,9 @@ def _violations() -> list[str]:
                     found.append(f"{rel}:{lineno}: Repository imports web framework ({mod})")
             if layer == "ai":
                 if (
-                    _is(mod, "app.store")
-                    or _is(mod, "app.store_sql")
-                    or _is(mod, "app.db")
+                    _is(mod, "app.repositories.memory")
+                    or _is(mod, "app.repositories.sql_server")
+                    or _is(mod, "app.repositories.factory")
                     or _is(mod, "app.backup")
                 ):
                     found.append(f"{rel}:{lineno}: AI imports repository/store ({mod})")
@@ -192,7 +194,7 @@ def test_records_is_framework_and_sql_free():
 
 def test_store_records_are_same_class():
     from app.records import CardRecord as RCard, CommentRecord as RComment, PRDRecord as RPrd
-    from app.store import CardRecord as SCard, CommentRecord as SComment, PRDRecord as SPrd
+    from app.repositories.memory import CardRecord as SCard, CommentRecord as SComment, PRDRecord as SPrd
 
     assert SCard is RCard
     assert SComment is RComment
@@ -209,13 +211,13 @@ def test_services_do_not_import_store_modules():
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
             if isinstance(node, ast.ImportFrom):
-                if node.level == 0 and node.module in {"app.store", "app.store_sql"}:
+                if node.level == 0 and node.module in {"app.repositories.memory", "app.repositories.sql_server"}:
                     raise AssertionError(f"{rel}:{node.lineno}: imports from {node.module}")
-                if node.level > 0 and node.module in {"store", "store_sql"}:
+                if node.level > 0 and node.module in {"memory", "sql_server", "factory"}:
                     raise AssertionError(f"{rel}:{node.lineno}: imports from .{node.module}")
             if isinstance(node, ast.Import):
                 for alias in node.names:
-                    if alias.name in {"app.store", "app.store_sql"}:
+                    if alias.name in {"app.repositories.memory", "app.repositories.sql_server"}:
                         raise AssertionError(f"{rel}:{node.lineno}: imports {alias.name}")
 
 

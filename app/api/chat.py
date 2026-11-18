@@ -26,7 +26,7 @@ from ..schemas.chat import ChatCompletionRequest
 from ..schemas.common import ErrorEnvelope
 from ..services import chat as chat_policy
 from ..services.chat_agent import prepare_messages, run_agent
-from ..db import Store
+from ..repositories.factory import Repository
 from .deps import get_settings, get_store, optional_actor
 
 router = APIRouter(prefix="/api/v1/chat", tags=["chat"])
@@ -80,7 +80,7 @@ async def list_models(settings: Annotated[Settings, Depends(get_settings)]) -> d
 async def chat_completions(
     request: Request,
     settings: Annotated[Settings, Depends(get_settings)],
-    store: Annotated[Store, Depends(get_store)],
+    store: Annotated[Repository, Depends(get_store)],
     actor: Annotated[Actor | None, Depends(optional_actor)],
 ) -> StreamingResponse:
     try:

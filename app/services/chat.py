@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import Any
 
 from ..config import Settings
-from ..db import Store
+from ..repositories.factory import Repository
 from ..domain_errors import AppError
 from ..schemas.actors import Actor
 
@@ -25,7 +25,7 @@ def require_chat_key(settings: Settings) -> None:
         )
 
 
-def resolve_actor(store: Store, actor: Actor | None, claimed: Any) -> Actor | None:
+def resolve_actor(store: Repository, actor: Actor | None, claimed: Any) -> Actor | None:
     """Resolve the acting actor, preferring the header over the body claim.
 
     Returns ``None`` when neither is present. Raises ``unknown_actor`` when the

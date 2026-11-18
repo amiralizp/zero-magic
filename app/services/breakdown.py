@@ -28,7 +28,7 @@ from ..schemas.prds import (
     BreakdownRequest,
     Usage,
 )
-from ..db import Store
+from ..repositories.factory import Repository
 from .cards import get_prd_or_404
 
 _OUTPUT_INJECTION_MARKERS = (
@@ -72,7 +72,7 @@ class BreakdownResult:
 class BreakdownService:
     def __init__(
         self,
-        store: Store,
+        store: Repository,
         settings: Settings,
         registry: ProviderRegistry,
         limiter: SlidingWindowLimiter,

@@ -12,20 +12,20 @@ import threading
 from dataclasses import replace
 from datetime import datetime, timezone
 
-from .actors import SEED_ACTORS
-from .records import CardRecord, CommentRecord, PRDRecord
-from .schemas.actors import Actor
-from .schemas.cards import Stage
+from ..actors import SEED_ACTORS
+from ..records import CardRecord, CommentRecord, PRDRecord
+from ..schemas.actors import Actor
+from ..schemas.cards import Stage
 
 # Re-export so existing ``from app.store import CardRecord`` keeps working.
-__all__ = ["CardRecord", "CommentRecord", "PRDRecord", "InMemoryStore", "utcnow"]
+__all__ = ["CardRecord", "CommentRecord", "PRDRecord", "InMemoryRepository", "utcnow"]
 
 
 def utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
-class InMemoryStore:
+class InMemoryRepository:
     def __init__(self, actors: tuple[Actor, ...] = SEED_ACTORS) -> None:
         self.kind = "memory"
         self._lock = threading.RLock()
