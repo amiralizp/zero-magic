@@ -1,6 +1,7 @@
 # ADR 0002: `X-Actor-Id` as temporary identity
 
-**Status:** Accepted (temporary; replaced in week 6)
+**Status:** Superseded
+**Superseded by:** [0009](0009-token-authentication-and-roles.md)
 **Date:** 2026-10-23
 **Deciders:** backend, security review
 

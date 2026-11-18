@@ -2,21 +2,21 @@
 
 from __future__ import annotations
 
-from .db import Store
+from .repositories.factory import Repository
 from .schemas.actors import Actor
 from .schemas.cards import CardRead, CommentRead
 from .schemas.prds import PRDRead
-from .store import CardRecord, CommentRecord, PRDRecord
+from .records import CardRecord, CommentRecord, PRDRecord
 
 
-def _actor(store: Store, actor_id: str) -> Actor:
+def _actor(store: Repository, actor_id: str) -> Actor:
     actor = store.get_actor(actor_id)
     if actor is None:
         raise RuntimeError(f"record references unknown actor {actor_id!r}")
     return actor
 
 
-def card_to_read(store: Store, record: CardRecord) -> CardRead:
+def card_to_read(store: Repository, record: CardRecord) -> CardRead:
     return CardRead(
         id=record.id,
         title=record.title,
@@ -34,7 +34,7 @@ def card_to_read(store: Store, record: CardRecord) -> CardRead:
     )
 
 
-def comment_to_read(store: Store, record: CommentRecord) -> CommentRead:
+def comment_to_read(store: Repository, record: CommentRecord) -> CommentRead:
     return CommentRead(
         id=record.id,
         card_id=record.card_id,
@@ -44,7 +44,7 @@ def comment_to_read(store: Store, record: CommentRecord) -> CommentRead:
     )
 
 
-def prd_to_read(store: Store, record: PRDRecord) -> PRDRead:
+def prd_to_read(store: Repository, record: PRDRecord) -> PRDRead:
     return PRDRead(
         id=record.id,
         title=record.title,

@@ -242,8 +242,8 @@ OpenAI-compatible models through the same interface.
 
 ## Database (SQL Server)
 
-The store has two implementations behind one interface: `InMemoryStore` (tests,
-zero setup) and `SqlServerStore` (durable). `DB_USER` decides which one runs.
+The store has two implementations behind one interface: `InMemoryRepository` (tests,
+zero setup) and `SqlServerRepository` (durable). `DB_USER` decides which one runs.
 
 ```powershell
 # .env
@@ -321,9 +321,11 @@ zero-magic/
     services/       state machine, breakdown orchestration
     config.py       environment-backed settings
     errors.py       one error envelope and its handlers
-    store.py        in-memory store (tests, no server)
-    store_sql.py    SQL Server store: same interface, durable rows
-    db.py           picks the store from settings
+    repositories/
+      memory.py     in-memory repository (tests, no server)
+      sql_server.py SQL Server repository: same interface, durable rows
+      factory.py    selects the repository from settings
+
     web/            build-free console: HTML, CSS, JS
   evals/            25-PRD dataset, metrics, runner
   scripts/          model comparison, embedding search, agent loop

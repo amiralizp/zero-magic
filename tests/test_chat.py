@@ -130,9 +130,8 @@ def test_completions_streams_deltas(monkeypatch):
 
 def test_completions_explains_a_quota_error(monkeypatch):
     async def fake_complete(self, messages, model=None, temperature=0.7, max_tokens=2048, tools=None):
-        request = httpx.Request("POST", "https://api.example.com/chat/completions")
-        response = httpx.Response(402, request=request)
-        raise httpx.HTTPStatusError("refused", request=request, response=response)
+        from app.ai.chat.errors import ChatUpstreamError
+        raise ChatUpstreamError(status=402, kind="http_status", detail="refused")
 
     monkeypatch.setattr(chat_api.ChatClient, "complete", fake_complete)
     client = helpers.make_client(chat_api_key="test-key")
@@ -147,9 +146,8 @@ def test_completions_explains_a_quota_error(monkeypatch):
 
 def test_completions_explains_a_rate_limit(monkeypatch):
     async def fake_complete(self, messages, model=None, temperature=0.7, max_tokens=2048, tools=None):
-        request = httpx.Request("POST", "https://api.example.com/chat/completions")
-        response = httpx.Response(429, request=request)
-        raise httpx.HTTPStatusError("limited", request=request, response=response)
+        from app.ai.chat.errors import ChatUpstreamError
+        raise ChatUpstreamError(status=429, kind="http_status", detail="limited")
 
     monkeypatch.setattr(chat_api.ChatClient, "complete", fake_complete)
     client = helpers.make_client(chat_api_key="test-key")

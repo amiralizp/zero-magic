@@ -18,27 +18,9 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from .domain_errors import AppError  # noqa: F401
+
 logger = logging.getLogger("zero_magic.errors")
-
-
-class AppError(Exception):
-    """A failure we understand, with an HTTP status and a stable code."""
-
-    def __init__(
-        self,
-        status_code: int,
-        code: str,
-        message: str,
-        *,
-        details: Any = None,
-        headers: dict[str, str] | None = None,
-    ) -> None:
-        super().__init__(message)
-        self.status_code = status_code
-        self.code = code
-        self.message = message
-        self.details = details
-        self.headers = headers
 
 
 def error_body(code: str, message: str, details: Any = None) -> dict[str, Any]:

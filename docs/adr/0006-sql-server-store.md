@@ -1,6 +1,7 @@
 # ADR 0006: SQL Server behind the existing store interface
 
-**Status:** Accepted
+**Status:** Superseded
+**Superseded by:** [0008](0008-postgresql-and-alembic.md)
 **Date:** 2026-11-02
 **Deciders:** backend
 **Supersedes in part:** [0001](0001-in-memory-store.md)
