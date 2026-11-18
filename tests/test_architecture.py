@@ -253,3 +253,43 @@ def test_meta_does_not_touch_app_state_or_store_methods():
                 raise AssertionError(
                     f"{rel}:{node.lineno}: meta router calls store.{node.func.attr}(...)"
                 )
+
+
+def test_chat_service_is_framework_free():
+    import ast
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parent.parent
+    rel = "app/services/chat.py"
+    path = root / rel
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    forbidden = {"fastapi", "starlette", "httpx", "app.api", "app.presenters"}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name in forbidden or alias.name.split(".")[0] in {"fastapi", "starlette", "httpx"}:
+                    raise AssertionError(f"{rel}:{node.lineno}: imports {alias.name}")
+                if alias.name.startswith("app.api") or alias.name.startswith("app.presenters"):
+                    raise AssertionError(f"{rel}:{node.lineno}: imports {alias.name}")
+        if isinstance(node, ast.ImportFrom):
+            mod = node.module or ""
+            if mod in forbidden or mod.startswith("fastapi") or mod.startswith("starlette") or mod.startswith("httpx"):
+                raise AssertionError(f"{rel}:{node.lineno}: imports from {mod}")
+            if mod.startswith("app.api") or mod.startswith("app.presenters"):
+                raise AssertionError(f"{rel}:{node.lineno}: imports from {mod}")
+
+
+def test_chat_router_does_not_call_store_methods():
+    import ast
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parent.parent
+    rel = "app/api/chat.py"
+    path = root / rel
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+            if isinstance(node.func.value, ast.Name) and node.func.value.id == "store":
+                raise AssertionError(
+                    f"{rel}:{node.lineno}: chat router calls store.{node.func.attr}(...)"
+                )

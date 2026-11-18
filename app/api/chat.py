@@ -24,6 +24,7 @@ from ..errors import AppError
 from ..schemas.actors import Actor
 from ..schemas.chat import ChatCompletionRequest
 from ..schemas.common import ErrorEnvelope
+from ..services import chat as chat_policy
 from ..services.chat_agent import prepare_messages, run_agent
 from ..db import Store
 from .deps import get_settings, get_store, optional_actor
@@ -52,22 +53,14 @@ def _blocked_hint(settings: Settings) -> str:
     )
 
 
-def _quota_hint(settings: Settings) -> str:
-    return (
-        f"{settings.chat_provider} refused the request because the account has no "
-        "remaining balance. Top up the account, then try again."
-    )
-
-
 def _error_frame(message: str) -> str:
     return f"data: {json.dumps({'error': message})}\n\n"
 
 
 @router.get("/models", responses=_ERRORS)
 async def list_models(settings: Annotated[Settings, Depends(get_settings)]) -> dict[str, Any]:
+    chat_policy.require_chat_key(settings)
     client = ChatClient(settings)
-    if not settings.chat_api_key:
-        raise AppError(status_code=401, code="missing_chat_key", message=_key_hint(settings))
     try:
         models = await client.list_models()
     except ChatAuthError as exc:
@@ -136,27 +129,13 @@ async def chat_completions(
 
     # A browser that still runs an older console script sends no header. The
     # body is the same trust level (there is no login yet), so accept it too.
-    if actor is None:
-        claimed = body.actor
-        if isinstance(claimed, str) and claimed.strip():
-            actor = store.get_actor(claimed.strip())
-            if actor is None:
-                raise AppError(
-                    status_code=401,
-                    code="unknown_actor",
-                    message=f"Actor {claimed!r} is not registered.",
-                )
+    actor = chat_policy.resolve_actor(store, actor, body.actor)
 
     model = body.model or settings.chat_model
     temperature = body.temperature
     max_tokens = body.max_tokens
 
-    if not settings.chat_api_key:
-        raise AppError(
-            status_code=401,
-            code="missing_chat_key",
-            message=f"CHAT_API_KEY for {settings.chat_provider} is not configured.",
-        )
+    chat_policy.require_chat_key(settings)
 
     client = ChatClient(settings)
     prepared = prepare_messages(messages, store, actor)
@@ -181,20 +160,9 @@ async def chat_completions(
             yield "data: [DONE]\n\n"
         except httpx.HTTPStatusError as exc:
             status = exc.response.status_code
-            if status == 401:
-                yield _error_frame(_key_hint(settings))
-                return
-            if status == 403:
-                yield _error_frame(_blocked_hint(settings))
-                return
-            if status == 402:
-                yield _error_frame(_quota_hint(settings))
-                return
-            if status == 429:
-                yield _error_frame(
-                    f"{settings.chat_provider} rate-limited this model. "
-                    "Free-model quota is separate from a Go subscription; pick a Go model and try again."
-                )
+            hint = chat_policy.upstream_hint(settings, status)
+            if hint is not None:
+                yield _error_frame(hint)
                 return
             # The body of a streaming error response is not read yet.
             detail = await exc.response.aread()
