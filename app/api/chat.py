@@ -37,21 +37,6 @@ _ERRORS = {
 }
 
 
-def _key_hint(settings: Settings) -> str:
-    return (
-        f"{settings.chat_provider} rejected the API key. Check CHAT_API_KEY in .env "
-        "and restart the server."
-    )
-
-
-def _blocked_hint(settings: Settings) -> str:
-    return (
-        f"{settings.chat_provider} answered 403 Forbidden. That is often a network "
-        "block rather than a bad key. Try a VPN, or set HTTPS_PROXY in .env, then "
-        "restart the server."
-    )
-
-
 def _error_frame(message: str) -> str:
     return f"data: {json.dumps({'error': message})}\n\n"
 
@@ -63,9 +48,9 @@ async def list_models(settings: Annotated[Settings, Depends(get_settings)]) -> d
     try:
         models = await client.list_models()
     except ChatAuthError as exc:
-        raise AppError(status_code=401, code="chat_key_rejected", message=_key_hint(settings)) from exc
+        raise AppError(status_code=401, code="chat_key_rejected", message=chat_policy.key_hint(settings)) from exc
     except ChatBlockedError as exc:
-        raise AppError(status_code=502, code="chat_blocked", message=_blocked_hint(settings)) from exc
+        raise AppError(status_code=502, code="chat_blocked", message=chat_policy.blocked_hint(settings)) from exc
     except ChatUpstreamError as exc:
         raise AppError(
             status_code=502,

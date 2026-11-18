@@ -414,6 +414,22 @@ def test_chat_router_does_not_call_store_methods():
                 )
 
 
+def test_chat_router_has_no_hint_functions():
+    import ast
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parent.parent
+    rel = "app/api/chat.py"
+    path = root / rel
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            if node.name.startswith("_") and node.name.endswith("_hint"):
+                raise AssertionError(
+                    f"{rel}:{node.lineno}: router defines hint function {node.name}"
+                )
+
+
 def test_services_do_not_import_presenters():
     import ast
     from pathlib import Path

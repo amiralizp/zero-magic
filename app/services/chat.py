@@ -45,6 +45,21 @@ def resolve_actor(store: Repository, actor: Actor | None, claimed: Any) -> Actor
     return resolved
 
 
+def key_hint(settings: Settings) -> str:
+    return (
+        f"{settings.chat_provider} rejected the API key. Check CHAT_API_KEY in .env "
+        "and restart the server."
+    )
+
+
+def blocked_hint(settings: Settings) -> str:
+    return (
+        f"{settings.chat_provider} answered 403 Forbidden. That is often a network "
+        "block rather than a bad key. Try a VPN, or set HTTPS_PROXY in .env, then "
+        "restart the server."
+    )
+
+
 def upstream_hint(settings: Settings, status: int) -> str | None:
     """Return a user-facing hint for a known upstream status, else None."""
     if status == 401:
