@@ -124,7 +124,8 @@
     - [x] S8.6 backup behind services (layer move only)
     - [x] S8.7 services stop importing presenters
     - [x] S8.8a rename store to repositories (step/S8-8a-rename)
-    - [ ] S8.8b allowlist for injection points, resolve the httpx violation in chat.py, remove the xfail marker, update the Architecture map in AGENTS.md and docs/architecture.md
+    - [x] S8.8b allowlist for injection points, httpx violation resolved, xfail marker removed (step/S8-8b-httpx)
+    - [ ] S8.8c update the Architecture map and the "not present yet" notes in AGENTS.md and docs/architecture.md
     - [ ] S8.9 move _key_hint and _blocked_hint (models endpoint) to services/chat.py
     - [ ] S8.10 (known debt, finish in S11) services/backup.py still calls app/backup.py, a SQL Server module; replace it with a repository method when PostgreSQL lands
 
