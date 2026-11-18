@@ -99,7 +99,7 @@
   - **Done when:** تست اجرا می‌شود و فهرست تخلف‌ها را با نام فایل نشان می‌دهد.
   - **Commit:** `test(arch): add architecture fitness tests (xfail)`
 
-- [ ] **S8 — Refactor تا سبز شدن**  (branch: `step/S8-<slug>`)
+- [x] **S8 — Refactor تا سبز شدن**  (branch: `step/S8-<slug>`) (done; open debts S8.10 and S8.11 are tracked below and closed in S11 and later)
   - **Goal:** کد را به معماری ثبت‌شده برسانی، بدون عوض شدن رفتار برنامه.
   - **Tasks:**
     - پوشه `app/repositories/` بساز: یک interface (Protocol)، پیاده‌سازی `memory.py` (همان InMemoryStore فعلی) و موقتاً `sql_server.py`.
@@ -126,7 +126,7 @@
     - [x] S8.8a rename store to repositories (step/S8-8a-rename)
     - [x] S8.8b allowlist for injection points, httpx violation resolved, xfail marker removed (step/S8-8b-httpx)
     - [x] S8.8c update the Architecture map and the "not present yet" notes in AGENTS.md and docs/architecture.md
-    - [ ] S8.9 move _key_hint and _blocked_hint (models endpoint) to services/chat.py
+    - [x] S8.9 move _key_hint and _blocked_hint (models endpoint) to services/chat.py
     - [ ] S8.10 (known debt, finish in S11) services/backup.py still calls app/backup.py, a SQL Server module; replace it with a repository method when PostgreSQL lands
     - [ ] S8.11 (known debt) presenters.py still reads actors through the repository; pass resolved actors in, or move enrichment to a service
 
