@@ -116,7 +116,7 @@
     - [x] S8.1 AppError to a framework-free module (step/S8-1-errors)
     - [x] S8.2 neutral records module shared by both stores
     - [x] S8.3 card/PRD list and get through services (no store in routers)
-    - [ ] S8.4 meta via Depends(get_store), no app.state access
+    - [x] S8.4 meta via Depends(get_store), no app.state access
     - [ ] S8.5 chat: strict request schema, chat service, fix the 500 on a bad
           temperature (write the failing test first)
     - [ ] S8.6 backup behind services (layer move only)
