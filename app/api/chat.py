@@ -22,6 +22,7 @@ from ..ai.chat.client import ChatAuthError, ChatBlockedError, ChatClient
 from ..config import Settings
 from ..errors import AppError
 from ..schemas.actors import Actor
+from ..schemas.chat import ChatCompletionRequest
 from ..schemas.common import ErrorEnvelope
 from ..services.chat_agent import prepare_messages, run_agent
 from ..db import Store
@@ -90,20 +91,42 @@ async def chat_completions(
     actor: Annotated[Actor | None, Depends(optional_actor)],
 ) -> StreamingResponse:
     try:
-        body = await request.json()
+        raw = await request.json()
     except json.JSONDecodeError as exc:
         raise AppError(
             status_code=400,
             code="invalid_json",
             message="The request body must be valid JSON.",
         ) from exc
-    if not isinstance(body, dict):
+    if not isinstance(raw, dict):
         raise AppError(
             status_code=400,
             code="invalid_body",
             message="The request body must be a JSON object.",
         )
-    messages = body.get("messages") or []
+    try:
+        body = ChatCompletionRequest.model_validate(raw)
+    except Exception as exc:  # noqa: BLE001 - surfaced as invalid_payload
+        from pydantic import ValidationError
+
+        if isinstance(exc, ValidationError):
+            details = [
+                {
+                    "location": [str(part) for part in err.get("loc", ())],
+                    "message": err.get("msg", "Invalid value"),
+                    "type": err.get("type", "value_error"),
+                }
+                for err in exc.errors()
+            ]
+        else:
+            details = None
+        raise AppError(
+            status_code=422,
+            code="invalid_payload",
+            message="Request payload is invalid. See details for the failing fields.",
+            details=details,
+        ) from exc
+    messages = body.messages or []
     if not isinstance(messages, list) or not messages:
         raise AppError(
             status_code=400,
@@ -114,7 +137,7 @@ async def chat_completions(
     # A browser that still runs an older console script sends no header. The
     # body is the same trust level (there is no login yet), so accept it too.
     if actor is None:
-        claimed = body.get("actor")
+        claimed = body.actor
         if isinstance(claimed, str) and claimed.strip():
             actor = store.get_actor(claimed.strip())
             if actor is None:
@@ -124,9 +147,9 @@ async def chat_completions(
                     message=f"Actor {claimed!r} is not registered.",
                 )
 
-    model = body.get("model") or settings.chat_model
-    temperature = float(body.get("temperature", 0.7))
-    max_tokens = int(body.get("max_tokens", 2048))
+    model = body.model or settings.chat_model
+    temperature = body.temperature
+    max_tokens = body.max_tokens
 
     if not settings.chat_api_key:
         raise AppError(
