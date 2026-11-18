@@ -4,13 +4,14 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends
 
 from ..ai.prompts import PROMPTS
 from ..ai.registry import ProviderRegistry
 from ..config import Settings
 from ..schemas.actors import ActorList
 from ..schemas.cards import STAGE_ORDER
+from ..services import cards as card_service
 from ..services.cards import ALLOWED_TRANSITIONS, HUMAN_ONLY_TRANSITIONS
 from ..db import Store
 from .deps import get_registry, get_settings, get_store
@@ -19,14 +20,15 @@ router = APIRouter(prefix="/api/v1", tags=["meta"])
 
 
 @router.get("/health", summary="Liveness")
-async def health(request: Request) -> dict[str, str]:
-    settings: Settings = request.app.state.settings
-    store = request.app.state.store
+async def health(
+    settings: Annotated[Settings, Depends(get_settings)],
+    store: Annotated[Store, Depends(get_store)],
+) -> dict[str, str]:
     return {
         "status": "ok",
         "version": settings.api_version,
         "environment": settings.environment,
-        "storage": getattr(store, "kind", "memory"),
+        "storage": store.kind,
     }
 
 
@@ -34,7 +36,7 @@ async def health(request: Request) -> dict[str, str]:
 async def actors(
     store: Annotated[Store, Depends(get_store)],
 ) -> ActorList:
-    items = store.list_actors()
+    items = card_service.list_actors(store)
     return ActorList(items=items, total=len(items))
 
 

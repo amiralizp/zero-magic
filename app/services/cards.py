@@ -65,6 +65,10 @@ def list_prds(store: Store) -> list[PRDRecord]:
     return store.list_prds()
 
 
+def list_actors(store: Store) -> list[Actor]:
+    return store.list_actors()
+
+
 def _require_human(actor: Actor, action: str) -> None:
     if actor.role is not ActorRole.HUMAN:
         raise AppError(

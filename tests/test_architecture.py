@@ -233,3 +233,23 @@ def test_read_routers_do_not_call_store_methods():
                     raise AssertionError(
                         f"{rel}:{node.lineno}: router calls store.{node.func.attr}(...)"
                     )
+
+
+def test_meta_does_not_touch_app_state_or_store_methods():
+    import ast
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parent.parent
+    rel = "app/api/meta.py"
+    path = root / rel
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Attribute):
+            # No access to app.state or request.app.state
+            if node.attr == "state":
+                raise AssertionError(f"{rel}:{node.lineno}: uses app.state")
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+            if isinstance(node.func.value, ast.Name) and node.func.value.id == "store":
+                raise AssertionError(
+                    f"{rel}:{node.lineno}: meta router calls store.{node.func.attr}(...)"
+                )
