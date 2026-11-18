@@ -121,11 +121,12 @@
           temperature (write the failing test first)
     - [x] S8.5a chat request schema, 500 on a bad temperature fixed (step/S8-5a-chat-schema)
     - [x] S8.5b chat service for the key check and upstream error hints
-    - [ ] S8.6 backup behind services (layer move only)
+    - [x] S8.6 backup behind services (layer move only)
     - [ ] S8.7 services stop importing presenters
     - [ ] S8.8 rename store to repositories, remove the xfail marker
       from tests/test_architecture.py, update the Architecture map in AGENTS.md
     - [ ] S8.9 move _key_hint and _blocked_hint (models endpoint) to services/chat.py
+    - [ ] S8.10 (known debt, finish in S11) services/backup.py still calls app/backup.py, a SQL Server module; replace it with a repository method when PostgreSQL lands
 
 ## بخش: PostgreSQL
 
