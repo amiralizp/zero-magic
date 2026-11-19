@@ -41,3 +41,11 @@ same HTTP API and adds no build step or dependency.
 3. If you changed a prompt or provider, regenerate the eval report and check the
    gate in `tests/test_evals.py`.
 4. Update `README.md` if a command, endpoint or limit changed.
+
+## Architecture (week 4)
+
+Follow docs/architecture.md section 3.1 and the ADRs in docs/adr/. Direction:
+HTTP -> Service -> Repository -> database. No business rule in routers, no SQL
+or fastapi in services, no rules in the repository. Do not change error codes
+or status codes. Never edit a test just to make it pass. Never touch .env.
+Before finishing: pytest -q green and the docs updated.

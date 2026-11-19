@@ -1,6 +1,6 @@
 """SQL Server persistence for cards, comments, PRDs and the audit log.
 
-Same method surface as ``InMemoryStore``, so services do not know which one they
+Same method surface as ``InMemoryRepository``, so services do not know which one they
 talk to. Writes are parameterised; lists are stored as JSON text.
 
 python-tds is used instead of pyodbc because pyodbc has no wheel for this
@@ -19,11 +19,12 @@ from typing import Any
 
 import pytds
 
-from .actors import SEED_ACTORS
-from .config import Settings
-from .schemas.actors import Actor, ActorRole
-from .schemas.cards import Stage
-from .store import CardRecord, CommentRecord, PRDRecord, utcnow
+from ..actors import SEED_ACTORS
+from ..config import Settings
+from ..schemas.actors import Actor, ActorRole
+from ..schemas.cards import Stage
+from ..records import CardRecord, CommentRecord, PRDRecord
+from .memory import utcnow
 
 MAX_POOL = 4
 
@@ -140,7 +141,7 @@ def _list(raw: str | None) -> list[str]:
     return [str(item) for item in value] if isinstance(value, list) else []
 
 
-class SqlServerStore:
+class SqlServerRepository:
     """The durable store. One pooled connection per call, guarded by a lock."""
 
     def __init__(self, settings: Settings) -> None:

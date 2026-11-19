@@ -7,16 +7,16 @@ where the same rows are visible from SSMS.
 
 from __future__ import annotations
 
-from .config import Settings
-from .store import InMemoryStore
-from .store_sql import SqlServerStore
+from ..config import Settings
+from .memory import InMemoryRepository
+from .sql_server import SqlServerRepository
 
-Store = InMemoryStore | SqlServerStore
+Repository = InMemoryRepository | SqlServerRepository
 
 
-def build_store(settings: Settings) -> Store:
+def build_repository(settings: Settings) -> Repository:
     if not settings.db_user:
-        return InMemoryStore()
-    store = SqlServerStore(settings)
+        return InMemoryRepository()
+    store = SqlServerRepository(settings)
     store.ensure_schema()
     return store

@@ -20,7 +20,7 @@ from .ai.providers.base import BreakdownProvider
 from .ai.registry import ProviderRegistry, build_providers
 from .api import assignment, cards, comments, meta, ops, prds, chat
 from .config import Settings
-from .db import Store, build_store
+from .repositories.factory import Repository, build_repository
 from .errors import install_error_handlers
 from .rate_limit import SlidingWindowLimiter
 
@@ -30,11 +30,11 @@ WEB_DIR = Path(__file__).resolve().parent / "web"
 def create_app(
     *,
     settings: Settings | None = None,
-    store: Store | None = None,
+    store: Repository | None = None,
     provider_overrides: Mapping[str, BreakdownProvider] | None = None,
 ) -> FastAPI:
     settings = settings or Settings.from_env()
-    store = store or build_store(settings)
+    store = store or build_repository(settings)
 
     providers = build_providers(settings)
     if provider_overrides:

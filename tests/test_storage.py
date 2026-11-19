@@ -7,15 +7,15 @@ suite independent of a running database.
 from __future__ import annotations
 
 from app.config import Settings
-from app.db import build_store
-from app.store import InMemoryStore
+from app.repositories.factory import build_repository
+from app.repositories.memory import InMemoryRepository
 
 import tests.helpers as helpers
 
 
 def test_no_login_keeps_the_in_memory_store():
-    store = build_store(Settings())
-    assert isinstance(store, InMemoryStore)
+    store = build_repository(Settings())
+    assert isinstance(store, InMemoryRepository)
 
 
 def test_health_reports_which_store_is_active(client):

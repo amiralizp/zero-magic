@@ -100,6 +100,9 @@ class Settings:
     db_user: str = ""
     db_password: str = field(default="", repr=False)
 
+    # PostgreSQL (S9; used from S11). Empty means SQL Server / in-memory.
+    database_url: str = field(default="", repr=False)
+
     # Backups are manual on purpose: a timer would fill the disk unattended.
     backup_keep_days: int = 14
     backup_dir: str = "backups"
@@ -136,6 +139,7 @@ class Settings:
             db_name=os.getenv("DB_NAME", "Gantry"),
             db_user=os.getenv("DB_USER", ""),
             db_password=os.getenv("DB_PASSWORD", ""),
+            database_url=os.getenv("DATABASE_URL", ""),
             backup_keep_days=_int("BACKUP_KEEP_DAYS", 14),
             backup_dir=os.getenv("BACKUP_DIR", "backups"),
             primary_model=os.getenv("MODEL_PRIMARY", DEFAULT_PRIMARY_MODEL),

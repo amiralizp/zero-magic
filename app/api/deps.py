@@ -8,14 +8,14 @@ from fastapi import Depends, Header, Request
 
 from ..ai.registry import ProviderRegistry
 from ..config import Settings
-from ..db import Store
+from ..repositories.factory import Repository
 from ..errors import AppError
 from ..rate_limit import SlidingWindowLimiter
 from ..schemas.actors import Actor, ActorRole
 from ..services.breakdown import BreakdownService
 
 
-def get_store(request: Request) -> Store:
+def get_store(request: Request) -> Repository:
     return request.app.state.store
 
 
@@ -32,7 +32,7 @@ def get_limiter(request: Request) -> SlidingWindowLimiter:
 
 
 def optional_actor(
-    store: Annotated[Store, Depends(get_store)],
+    store: Annotated[Repository, Depends(get_store)],
     x_actor_id: Annotated[str | None, Header(alias="X-Actor-Id")] = None,
 ) -> Actor | None:
     if x_actor_id is None:
@@ -74,7 +74,7 @@ def require_human(
 
 
 def get_breakdown_service(
-    store: Annotated[Store, Depends(get_store)],
+    store: Annotated[Repository, Depends(get_store)],
     settings: Annotated[Settings, Depends(get_settings)],
     registry: Annotated[ProviderRegistry, Depends(get_registry)],
     limiter: Annotated[SlidingWindowLimiter, Depends(get_limiter)],

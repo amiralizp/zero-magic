@@ -52,7 +52,7 @@
 
 ## بخش: تثبیت معماری
 
-- [ ] **S4 — نوشتن architecture.md**  (branch: `step/S4-<slug>`)
+- [x] **S4 — نوشتن architecture.md**  (branch: `step/S4-<slug>`)
   - **Goal:** مرز لایه‌ها را روی کاغذ بیاوری تا تو، agent و تست معماری همه به یک متن تکیه کنند. مهم‌ترین توصیه طرح خودت همین است.
   - **Tasks:**
     - فایل موجود `docs/architecture.md` را به‌روز کن (یا اگر ندارد بساز).
@@ -64,7 +64,7 @@
   - **Done when:** می‌توانی در ۲ دقیقه بگویی هر لایه چه می‌کند، چه نمی‌کند، و چرا این سبک را انتخاب کردی.
   - **Commit:** `docs(arch): define three-layer boundaries and style`
 
-- [ ] **S5 — نوشتن ADRها**  (branch: `step/S5-<slug>`)
+- [x] **S5 — نوشتن ADRها**  (branch: `step/S5-<slug>`)
   - **Goal:** «چرا»ی تصمیم‌ها را ثبت کنی تا بحث تکراری نشود و بتوانی در دفاع توضیح بدهی.
   - **Tasks:**
     - در `docs/adr/` چهار فایل بساز؛ هر کدام: وضعیت، زمینه، تصمیم، پیامدها، چطور چک می‌شود.
@@ -77,7 +77,7 @@
   - **Done when:** چهار ADR وجود دارد و هر کدام بخش «چطور چک می‌شود» دارد (مثلاً: تست معماری).
   - **Commit:** `docs(adr): add ADR 0007-0010`
 
-- [ ] **S6 — قوانین agent (AGENTS.md و CLAUDE.md)**  (branch: `step/S6-<slug>`)
+- [x] **S6 — قوانین agent (AGENTS.md و CLAUDE.md)**  (branch: `step/S6-<slug>`)
   - **Goal:** هر agent قبل از کار، قوانین معماری را بخواند و رعایت کند.
   - **Tasks:**
     - یک خط اضافه کن: «Read docs/architecture.md and the ADRs and follow them.»
@@ -88,7 +88,7 @@
   - **Done when:** هر دو فایل یک پیام یکسان درباره لایه‌ها و فایل‌های ممنوع دارند.
   - **Commit:** `docs(agent): add architecture rules to agent files`
 
-- [ ] **S7 — تست معماری (اول قرمز)**  (branch: `step/S7-<slug>`)
+- [x] **S7 — تست معماری (اول قرمز)**  (branch: `step/S7-<slug>`)
   - **Goal:** قوانین لایه‌ها خودکار چک شوند؛ اگر agent عجله کرد، تست جلویش را بگیرد. (Fitness Function)
   - **Tasks:**
     - فایل `tests/test_architecture.py` را بساز. با ماژول `ast` بخش `import`ها را می‌خواند، نه کل کد را.
@@ -99,7 +99,7 @@
   - **Done when:** تست اجرا می‌شود و فهرست تخلف‌ها را با نام فایل نشان می‌دهد.
   - **Commit:** `test(arch): add architecture fitness tests (xfail)`
 
-- [ ] **S8 — Refactor تا سبز شدن**  (branch: `step/S8-<slug>`)
+- [x] **S8 — Refactor تا سبز شدن**  (branch: `step/S8-<slug>`) (done; open debts S8.10 and S8.11 are tracked below and closed in S11 and later)
   - **Goal:** کد را به معماری ثبت‌شده برسانی، بدون عوض شدن رفتار برنامه.
   - **Tasks:**
     - پوشه `app/repositories/` بساز: یک interface (Protocol)، پیاده‌سازی `memory.py` (همان InMemoryStore فعلی) و موقتاً `sql_server.py`.
@@ -111,9 +111,28 @@
   - **Done when:** همه تست‌های قبلی و تست معماری سبز است و پاسخ‌های API مثل قبل است.
   - **Commit:** `refactor(cards): move rules to services, use repository interface  (برای هر ماژول جدا)`
 
+  - **S8 sub-steps (one branch and one commit each; tick S8 itself only when
+    all eight are done):**
+    - [x] S8.1 AppError to a framework-free module (step/S8-1-errors)
+    - [x] S8.2 neutral records module shared by both stores
+    - [x] S8.3 card/PRD list and get through services (no store in routers)
+    - [x] S8.4 meta via Depends(get_store), no app.state access
+    - [ ] S8.5 chat: strict request schema, chat service, fix the 500 on a bad
+          temperature (write the failing test first)
+    - [x] S8.5a chat request schema, 500 on a bad temperature fixed (step/S8-5a-chat-schema)
+    - [x] S8.5b chat service for the key check and upstream error hints
+    - [x] S8.6 backup behind services (layer move only)
+    - [x] S8.7 services stop importing presenters
+    - [x] S8.8a rename store to repositories (step/S8-8a-rename)
+    - [x] S8.8b allowlist for injection points, httpx violation resolved, xfail marker removed (step/S8-8b-httpx)
+    - [x] S8.8c update the Architecture map and the "not present yet" notes in AGENTS.md and docs/architecture.md
+    - [x] S8.9 move _key_hint and _blocked_hint (models endpoint) to services/chat.py
+    - [ ] S8.10 (known debt, finish in S11) services/backup.py still calls app/backup.py, a SQL Server module; replace it with a repository method when PostgreSQL lands
+    - [ ] S8.11 (known debt) presenters.py still reads actors through the repository; pass resolved actors in, or move enrichment to a service
+
 ## بخش: PostgreSQL
 
-- [ ] **S9 — راه‌اندازی PostgreSQL و اتصال**  (branch: `step/S9-<slug>`)
+- [x] **S9 — راه‌اندازی PostgreSQL و اتصال**  (branch: `step/S9-<slug>`)
   - **Goal:** یک دیتابیس واقعی (طبق ADR 0008) که داده‌ها بعد از ری‌استارت بمانند.
   - **Tasks:**
     - با Docker: `docker run --name gantry-pg -e POSTGRES_PASSWORD=<رمز-خودت> -e POSTGRES_DB=gantry -p 5432:5432 -d postgres:16` (یا نصب‌کننده رسمی PostgreSQL).
