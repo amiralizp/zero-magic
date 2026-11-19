@@ -142,7 +142,7 @@
   - **Done when:** یک اتصال آزمایشی `SELECT 1` موفق است.
   - **Commit:** `chore(db): add postgres settings and dependencies`
 
-- [ ] **S10 — Alembic و دو migration**  (branch: `step/S10-<slug>`)
+- [ ] **S10 — Alembic و دو migration**  (branch: `step/S10-<slug>`) (files written; waiting for the user to run alembic upgrade/downgrade/upgrade)
   - **Goal:** تغییر دیتابیس هم مثل کد «نسخه‌دار» و قابل برگشت شود.
   - **Tasks:**
     - `alembic init migrations` و تنظیم `DATABASE_URL`.
