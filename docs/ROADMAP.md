@@ -132,7 +132,7 @@
 
 ## بخش: PostgreSQL
 
-- [ ] **S9 — راه‌اندازی PostgreSQL و اتصال**  (branch: `step/S9-<slug>`)
+- [x] **S9 — راه‌اندازی PostgreSQL و اتصال**  (branch: `step/S9-<slug>`)
   - **Goal:** یک دیتابیس واقعی (طبق ADR 0008) که داده‌ها بعد از ری‌استارت بمانند.
   - **Tasks:**
     - با Docker: `docker run --name gantry-pg -e POSTGRES_PASSWORD=<رمز-خودت> -e POSTGRES_DB=gantry -p 5432:5432 -d postgres:16` (یا نصب‌کننده رسمی PostgreSQL).
