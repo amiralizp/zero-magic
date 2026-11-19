@@ -502,3 +502,78 @@ def test_ops_router_does_not_import_backup_or_pytds():
                 raise AssertionError(f"{rel}:{node.lineno}: imports from {mod}")
             if mod == "pytds":
                 raise AssertionError(f"{rel}:{node.lineno}: imports from pytds")
+
+def test_services_and_api_do_not_import_sqlalchemy_or_psycopg():
+    import ast
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parent.parent
+    for folder in ("services", "api"):
+        for path in (root / "app" / folder).rglob("*.py"):
+            rel = path.relative_to(root).as_posix()
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    for alias in node.names:
+                        top = alias.name.split(".")[0]
+                        if top in {"sqlalchemy", "psycopg"}:
+                            raise AssertionError(f"{rel}:{node.lineno}: imports {alias.name}")
+                if isinstance(node, ast.ImportFrom):
+                    mod = node.module or ""
+                    top = mod.split(".")[0]
+                    if top in {"sqlalchemy", "psycopg"}:
+                        raise AssertionError(f"{rel}:{node.lineno}: imports from {mod}")
+
+
+def test_only_postgres_repository_imports_sqlalchemy_or_psycopg():
+    import ast
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parent.parent
+    allowed_file = "app/repositories/postgres.py"
+    for path in (root / "app").rglob("*.py"):
+        rel = path.relative_to(root).as_posix()
+        if rel == allowed_file:
+            continue
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    top = alias.name.split(".")[0]
+                    if top in {"sqlalchemy", "psycopg"}:
+                        raise AssertionError(f"{rel}:{node.lineno}: imports {alias.name}")
+            if isinstance(node, ast.ImportFrom):
+                mod = node.module or ""
+                top = mod.split(".")[0]
+                if top in {"sqlalchemy", "psycopg"}:
+                    raise AssertionError(f"{rel}:{node.lineno}: imports from {mod}")
+
+
+def test_postgres_repository_only_imported_by_factory():
+    import ast
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parent.parent
+    for path in (root / "app").rglob("*.py"):
+        rel = path.relative_to(root).as_posix()
+        if rel == "app/repositories/factory.py":
+            continue
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    if alias.name == "app.repositories.postgres":
+                        raise AssertionError(f"{rel}:{node.lineno}: imports app.repositories.postgres")
+            if isinstance(node, ast.ImportFrom):
+                mod = node.module or ""
+                if mod == "app.repositories.postgres":
+                    raise AssertionError(f"{rel}:{node.lineno}: imports from app.repositories.postgres")
+
+def test_services_and_api_may_import_repository_errors():
+    # Neutral repository errors are explicitly allowed in services and api.
+    src = "from app.repositories.errors import RepositoryIntegrityError\n"
+    vs = _check(src, "app/services/foo.py")
+    assert vs == [], f"repository errors import was flagged: {vs}"
+
+    vs2 = _check(src, "app/api/foo.py")
+    assert vs2 == [], f"repository errors import was flagged: {vs2}"
