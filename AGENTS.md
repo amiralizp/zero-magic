@@ -31,6 +31,14 @@ Windows PowerShell, from `zero-magic/`:
 & .venv\Scripts\python.exe -m uvicorn app.main:app --reload
 ```
 
+Database migrations (user-run, need `DATABASE_URL` in the environment):
+```powershell
+& .venv\Scripts\python.exe -m alembic upgrade head
+& .venv\Scripts\python.exe -m alembic downgrade -1
+& .venv\Scripts\python.exe -m alembic current
+```
+Run these yourself, not through an agent.
+
 There is no Makefile. `python -m` is preferred for modules; `uvicorn app.main:app`
 is the supported server entry point. Never run `python app/main.py` (see
 BUG-001 in `docs/test-plan.md`).
