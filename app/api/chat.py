@@ -26,7 +26,7 @@ from ..schemas.common import ErrorEnvelope
 from ..services import chat as chat_policy
 from ..services.chat_agent import prepare_messages, run_agent
 from ..repositories.factory import Repository
-from .deps import get_settings, get_store, optional_actor
+from .deps import get_settings, get_store, require_actor
 
 router = APIRouter(prefix="/api/v1/chat", tags=["chat"])
 
@@ -42,7 +42,10 @@ def _error_frame(message: str) -> str:
 
 
 @router.get("/models", responses=_ERRORS)
-async def list_models(settings: Annotated[Settings, Depends(get_settings)]) -> dict[str, Any]:
+async def list_models(
+    settings: Annotated[Settings, Depends(get_settings)],
+    actor: Annotated[Actor, Depends(require_actor)],
+) -> dict[str, Any]:
     chat_policy.require_chat_key(settings)
     client = ChatClient(settings)
     try:
@@ -65,7 +68,7 @@ async def chat_completions(
     request: Request,
     settings: Annotated[Settings, Depends(get_settings)],
     store: Annotated[Repository, Depends(get_store)],
-    actor: Annotated[Actor | None, Depends(optional_actor)],
+    actor: Annotated[Actor, Depends(require_actor)],
 ) -> StreamingResponse:
     try:
         raw = await request.json()
@@ -110,10 +113,6 @@ async def chat_completions(
             code="invalid_messages",
             message="messages must be a non-empty list of {role, content} objects.",
         )
-
-    # A browser that still runs an older console script sends no header. The
-    # body is the same trust level (there is no login yet), so accept it too.
-    actor = chat_policy.resolve_actor(store, actor, body.actor)
 
     model = body.model or settings.chat_model
     temperature = body.temperature

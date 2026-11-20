@@ -13,13 +13,20 @@ from dataclasses import replace
 from datetime import datetime, timezone
 
 from ..actors import SEED_ACTORS
-from ..records import CardRecord, CommentRecord, PRDRecord
+from ..records import CardRecord, CommentRecord, PRDRecord, UserRecord
 from ..repositories.errors import RepositoryIntegrityError, RepositoryNotFoundError
-from ..schemas.actors import Actor
+from ..schemas.actors import Actor, ActorRole
 from ..schemas.cards import Stage
 
 # Re-export so existing ``from app.store import CardRecord`` keeps working.
-__all__ = ["CardRecord", "CommentRecord", "PRDRecord", "InMemoryRepository", "utcnow"]
+__all__ = [
+    "CardRecord",
+    "CommentRecord",
+    "PRDRecord",
+    "UserRecord",
+    "InMemoryRepository",
+    "utcnow",
+]
 
 
 def utcnow() -> datetime:
@@ -34,6 +41,7 @@ class InMemoryRepository:
         self.cards: dict[str, CardRecord] = {}
         self.comments: dict[str, CommentRecord] = {}
         self.prds: dict[str, PRDRecord] = {}
+        self.users: dict[str, UserRecord] = {}
         self.audit_log: list[dict[str, object]] = []
 
     # -- actors ---------------------------------------------------------
@@ -45,6 +53,45 @@ class InMemoryRepository:
 
     def list_actors(self) -> list[Actor]:
         return sorted(self.actors.values(), key=lambda actor: actor.id)
+
+    # -- users ----------------------------------------------------------
+
+    def create_user(
+        self,
+        *,
+        username: str,
+        password_hash: str,
+        role: ActorRole,
+        actor_id: str,
+    ) -> UserRecord:
+        with self._lock:
+            if any(user.username == username for user in self.users.values()):
+                raise RepositoryIntegrityError(f"duplicate username: {username!r}")
+            if actor_id not in self.actors:
+                raise RepositoryIntegrityError(
+                    f"unknown actor for user: {actor_id!r}"
+                )
+            record = UserRecord(
+                id=self._new_id("usr", self.users),
+                username=username,
+                password_hash=password_hash,
+                role=role,
+                actor_id=actor_id,
+                created_at=utcnow(),
+            )
+            self.users[record.id] = record
+            return record
+
+    def get_user_by_username(self, username: str) -> UserRecord | None:
+        with self._lock:
+            return next(
+                (user for user in self.users.values() if user.username == username),
+                None,
+            )
+
+    def list_users(self) -> list[UserRecord]:
+        with self._lock:
+            return sorted(self.users.values(), key=lambda user: user.username)
 
     # -- cards ----------------------------------------------------------
 

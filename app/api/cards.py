@@ -51,6 +51,7 @@ async def create_card(
 @router.get("/cards", response_model=CardList, summary="List and filter cards")
 async def list_cards(
     store: Annotated[Repository, Depends(get_store)],
+    actor: Annotated[Actor, Depends(require_actor)],
     stage: Stage | None = None,
     assignee: str | None = Query(default=None, description="Actor id"),
     q: str | None = Query(default=None, max_length=100, description="Title/goal text"),
@@ -77,6 +78,7 @@ async def list_cards(
 async def get_card(
     card_id: str,
     store: Annotated[Repository, Depends(get_store)],
+    actor: Annotated[Actor, Depends(require_actor)],
 ) -> CardRead:
     record = card_service.get_card_or_404(store, card_id)
     return card_to_read(store, record)

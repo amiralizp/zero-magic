@@ -24,6 +24,7 @@ from .deps import (
     get_breakdown_service,
     get_settings,
     get_store,
+    require_actor,
     require_human,
 )
 
@@ -62,6 +63,7 @@ async def create_prd(
 @router.get("/prds", response_model=PRDList, summary="List PRDs, newest first")
 async def list_prds(
     store: Annotated[Repository, Depends(get_store)],
+    actor: Annotated[Actor, Depends(require_actor)],
 ) -> PRDList:
     records = card_service.list_prds(store)
     return PRDList(
@@ -79,6 +81,7 @@ async def list_prds(
 async def get_prd(
     prd_id: str,
     store: Annotated[Repository, Depends(get_store)],
+    actor: Annotated[Actor, Depends(require_actor)],
 ) -> PRDRead:
     record = card_service.get_prd_or_404(store, prd_id)
     return prd_to_read(store, record)

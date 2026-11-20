@@ -23,7 +23,7 @@ from sqlalchemy.engine import Engine
 
 from ..actors import SEED_ACTORS
 from ..config import Settings
-from ..records import CardRecord, CommentRecord, PRDRecord
+from ..records import CardRecord, CommentRecord, PRDRecord, UserRecord
 from ..repositories.errors import RepositoryIntegrityError, RepositoryNotFoundError
 from ..schemas.actors import Actor, ActorRole
 from ..schemas.cards import Stage
@@ -69,13 +69,16 @@ def _list(value: Any) -> list[str]:
 _SCHEMA_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,62}$")
 
 # Whitelists for identifiers used in f-strings (values stay parameterised).
-_ALLOWED_TABLES = frozenset({"cards", "comments", "prds", "actors", "audit_log"})
+_ALLOWED_TABLES = frozenset(
+    {"cards", "comments", "prds", "actors", "audit_log", "users"}
+)
 _ALLOWED_COLUMNS = frozenset(
     {
         "id", "title", "goal", "acceptance_criteria", "out_of_scope", "stage",
         "assignee_id", "created_by", "prd_id", "created_at", "updated_at",
         "version", "built_by", "depends_on", "card_id", "author_id", "body",
         "event", "subject_id", "actor_id", "details",
+        "username", "password_hash", "role", "created_at",
     }
 )
 
@@ -149,6 +152,69 @@ class PostgresRepository:
                 text("SELECT id, display_name, role FROM actors ORDER BY id")
             ).fetchall()
         return [Actor(id=r[0], display_name=r[1], role=ActorRole(r[2])) for r in rows]
+
+    # -- users -----------------------------------------------------------
+
+    def create_user(
+        self,
+        *,
+        username: str,
+        password_hash: str,
+        role: ActorRole,
+        actor_id: str,
+    ) -> UserRecord:
+        user_id = f"usr_{secrets.token_hex(6)}"
+        now = _utcnow()
+        try:
+            with self._conn() as conn:
+                conn.execute(
+                    text(
+                        "INSERT INTO users (id, username, password_hash, role, actor_id, created_at) "
+                        "VALUES (:id, :username, :password_hash, :role, :actor_id, :created_at)"
+                    ),
+                    {
+                        "id": user_id,
+                        "username": username,
+                        "password_hash": password_hash,
+                        "role": role.value,
+                        "actor_id": actor_id,
+                        "created_at": now,
+                    },
+                )
+                conn.commit()
+        except Exception as exc:
+            from sqlalchemy.exc import IntegrityError
+
+            if isinstance(exc, IntegrityError):
+                raise RepositoryIntegrityError(
+                    "duplicate username or unknown actor"
+                ) from exc
+            raise
+        user = self.get_user_by_username(username)
+        if user is None:
+            raise RuntimeError(f"user {username!r} vanished after insert")
+        return user
+
+    def get_user_by_username(self, username: str) -> UserRecord | None:
+        with self._conn() as conn:
+            row = conn.execute(
+                text(
+                    "SELECT id, username, password_hash, role, actor_id, created_at "
+                    "FROM users WHERE username = :username"
+                ),
+                {"username": username},
+            ).fetchone()
+        return None if row is None else self._user(row)
+
+    def list_users(self) -> list[UserRecord]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                text(
+                    "SELECT id, username, password_hash, role, actor_id, created_at "
+                    "FROM users ORDER BY username"
+                )
+            ).fetchall()
+        return [self._user(row) for row in rows]
 
     # -- cards -----------------------------------------------------------
 
@@ -503,6 +569,17 @@ class PostgresRepository:
             conn.commit()
 
     # -- mapping --------------------------------------------------------
+
+    @staticmethod
+    def _user(row: Any) -> UserRecord:
+        return UserRecord(
+            id=row[0],
+            username=row[1],
+            password_hash=row[2],
+            role=ActorRole(row[3]),
+            actor_id=row[4],
+            created_at=_aware(row[5]),
+        )
 
     @staticmethod
     def _card(row: Any) -> CardRecord:

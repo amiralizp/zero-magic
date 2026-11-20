@@ -11,6 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 
+from .schemas.actors import ActorRole
 from .schemas.cards import Stage
 
 
@@ -47,4 +48,16 @@ class PRDRecord:
     title: str
     body: str
     created_by: str
+    created_at: datetime
+
+
+@dataclass
+class UserRecord:
+    """A login identity. ``password_hash`` is an encoded Argon2 hash, never a password."""
+
+    id: str
+    username: str
+    password_hash: str
+    role: ActorRole
+    actor_id: str
     created_at: datetime

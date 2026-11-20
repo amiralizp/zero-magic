@@ -16,6 +16,7 @@ from tests.helpers import (
     create_card,
     headers,
     move,
+    raw_client,
 )
 
 
@@ -175,13 +176,13 @@ def test_agent_that_built_the_card_still_cannot_validate_it(client):
     assert response.json()["error"]["code"] == "agent_not_allowed"
 
 
-def test_transition_missing_actor_is_401(client):
+def test_transition_missing_token_is_401(client):
     card = create_card(client)
-    response = client.post(
+    response = raw_client(client.app).post(
         f"/api/v1/cards/{card['id']}/transition", json={"to_stage": "ready"}
     )
     assert response.status_code == 401
-    assert response.json()["error"]["code"] == "missing_actor"
+    assert response.json()["error"]["code"] == "missing_token"
 
 
 def test_transition_on_missing_card_is_404(client):

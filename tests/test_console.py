@@ -27,7 +27,9 @@ def test_console_assets_are_served(client):
     script = client.get("/console/assets/console.js")
     assert script.status_code == 200
     assert "javascript" in script.headers["content-type"]
-    assert "X-Actor-Id" in script.text
+    assert "Authorization" in script.text
+    assert "Bearer ${state.token}" in script.text
+    assert "authHeaders" in script.text
 
 
 def test_console_includes_the_ai_chat_panel(client):
@@ -41,7 +43,7 @@ def test_console_chat_can_change_the_board(client):
     assert "create a spec" in client.get("/console").text
     script = client.get("/console/assets/console.js").text
     assert "gantry_tool" in script
-    assert "X-Actor-Id" in script
+    assert "Authorization" in script
 
 
 def test_console_chat_steps_aside_for_the_card_drawer(client):
@@ -63,3 +65,22 @@ def test_console_is_linked_from_root_but_absent_from_openapi(client):
     paths = client.get("/openapi.json").json()["paths"]
     assert "/console" not in paths
     assert "/console/assets/console.css" not in paths
+
+
+def test_console_has_a_login_form_and_no_actor_picker(client):
+    body = client.get("/console").text
+    assert 'id="login-form"' in body
+    assert 'id="login-button"' in body
+    assert 'id="logout-button"' in body
+    assert "actor-select" not in body
+    assert "X-Actor-Id" not in body
+
+
+def test_standalone_chat_shares_the_same_token(client):
+    page = client.get("/chat").text
+    assert 'id="chatLoginForm"' in page
+    assert 'id="chatLogoutBtn"' in page
+    script = client.get("/chat/assets/app.js").text
+    assert "zm.token" in script
+    assert "Bearer ${authToken}" in script
+    assert "actor:" not in script

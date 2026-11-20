@@ -1,8 +1,8 @@
 # Architecture
 
-**Status:** weeks 1-3 complete (cards, comments, assignment, PRD breakdown) plus a build-free console
-**Last reviewed:** 2026-11-17
-**Out of scope for this version:** the week-4 Vue frontend, PostgreSQL, Docker, authentication
+**Status:** weeks 1-3 complete (cards, comments, assignment, PRD breakdown), a build-free console and S12 signed-token authentication
+**Last reviewed:** 2026-11-20
+**Out of scope for this version:** the week-4 Vue frontend and Docker
 
 ## 1. What this service is
 
@@ -19,6 +19,8 @@ Two properties drive most of the design:
 2. **The model is an untrusted dependency.** Its output is schema-validated,
    bounded, retried, optionally replaced by a fallback, and scored by an eval
    suite before a prompt change ships.
+3. **Identity is signed, not claimed.** A bearer token decides who is calling;
+   a header or a chat body field cannot change it.
 
 ## 2. Context
 
@@ -26,7 +28,7 @@ Two properties drive most of the design:
 Console page              curl / PowerShell          evals + scripts
 app/web/ (no build)              |                        |
         |                        |                        |
-        +-------- HTTP ----------+------------------------+
+        +---- HTTP + Bearer -----+------------------------+
                                  |
                      FastAPI app (app/main.py)
                      CORS, request id, errors
@@ -52,7 +54,7 @@ the work.
 | Layer | Files | May know about | Must not |
 | --- | --- | --- | --- |
 | HTTP | `app/api/*.py`, `app/main.py` | schemas, services, errors | contain business rules or touch dicts |
-| Service | `app/services/cards.py`, `app/services/breakdown.py` | repository, schemas, AI layer, settings | build HTTP responses |
+| Service | `app/services/cards.py`, `app/services/breakdown.py`, `app/services/auth.py` | repository, schemas, AI layer, settings | build HTTP responses |
 | Repository | `app/repositories/` (memory, postgres, factory) | schemas, actors | enforce permissions or transitions |
 | AI | `app/ai/*` | schemas for model output | read the store or raise `AppError` (except the registry) |
 | Contracts | `app/schemas/*` | Pydantic only | perform I/O |
@@ -64,7 +66,9 @@ the state machine without HTTP, and the eval harness can call a provider without
 starting the app.
 
 `app/services/cards.py` is the single owner of the transition matrix. If it is
-not in that file, it is not a rule.
+not in that file, it is not a rule. `app/services/auth.py` is the single owner of
+password hashing and token signing; it is the only app module that imports
+`jwt` or `argon2`, and an architecture test enforces that.
 
 ### 3.1 Target boundaries (week 4)
 
@@ -132,13 +136,18 @@ docs/ROADMAP.md as S8.9 and S8.11.
 ## 4. Request lifecycle
 
 1. **CORS middleware** (`app/main.py`) allows exactly `FRONTEND_ORIGIN`, the
-   methods the API uses, and the actor/request-id headers.
+   methods the API uses, and the `Authorization`/request-id headers.
 2. **Request-id middleware** echoes an incoming `X-Request-Id` (truncated to 64
    characters) or generates a 12-character hex id, and attaches it to every
    response, including errors.
-3. **Dependency resolution** (`app/api/deps.py`) reads `X-Actor-Id`, looks the
-   actor up in the store, and returns 401 `missing_actor` / `unknown_actor` when
-   identity is absent or unknown. `require_human` adds a 403 `human_only` gate.
+3. **Dependency resolution** (`app/api/deps.py`) reads `Authorization: Bearer`,
+   verifies the token through `services/auth.py`, then resolves the actor in the
+   store. The token's `role` claim must match the stored actor's role; a
+   mismatch is a 401 `invalid_token` with `WWW-Authenticate: Bearer`, so a
+   signed token cannot claim a role the store does not grant. Missing or
+   invalid tokens give 401 `missing_token` / `invalid_token`; `require_human`
+   adds a 403 `human_only` gate. A legacy `X-Actor-Id` header is ignored, as is
+   any `actor` field in a body.
 4. **Body validation** by Pydantic. `extra="forbid"` everywhere means a typo or
    an attempt to set an internal field is a 422, not a silent no-op.
 5. **Service call.** The service loads records, applies rules, mutates through
@@ -166,7 +175,8 @@ app/
   presenters.py      record -> public model
   rate_limit.py      sliding-window limiter, in-process
   api/
-    deps.py          store/settings/registry/limiter, actor identity
+    deps.py          store/settings/registry/limiter, token identity and actors
+    auth.py          login and current identity
     meta.py          health, actors, meta
     cards.py         CRUD, list, transition
     comments.py      list/add
@@ -175,6 +185,7 @@ app/
   services/
     cards.py         transition matrix, guardrails, card/PRD rules
     breakdown.py     timeout, retries, fallback, injection, atomic creation
+    auth.py          Argon2 hashing, HS256 tokens, initial users
   ai/
     prompts.py       v1 (naive) and v2 (strict) prompts
     registry.py      provider map and ordered fallback
@@ -185,8 +196,10 @@ app/
       base.py        ProviderOutput / ProviderError / Protocol
       mock.py        deterministic offline quality tiers
       openrouter.py  OpenAI-compatible HTTP client
-  schemas/           actors, cards, prds, common error envelope
-  web/               console.html, console.css, console.js (static, no build)
+  schemas/           actors, auth, cards, prds, common error envelope
+  web/               console.* and chat/* (static, no build)
+  scripts/
+    setup_auth.py    user-run creation of the two initial users
 ```
 
 ## 6. Endpoints
@@ -194,30 +207,35 @@ app/
 | Method | Path | Actor | Success | Main failures |
 | --- | --- | --- | --- | --- |
 | GET | `/api/v1/health` | none | 200 | - |
-| GET | `/api/v1/actors` | none | 200 | - |
-| GET | `/api/v1/meta` | none | 200 | - |
+| POST | `/api/v1/auth/login` | none | 200 | 401 `invalid_credentials`, 500 `auth_misconfigured` |
+| GET | `/api/v1/auth/me` | token | 200 | 401 `missing_token` / `invalid_token` |
+| GET | `/api/v1/actors` | token | 200 | 401 |
+| GET | `/api/v1/meta` | token | 200 | 401 |
 | POST | `/api/v1/cards` | human | 201 | 401, 403 `human_only`, 422 |
-| GET | `/api/v1/cards` | none | 200 | 422 (bad paging) |
-| GET | `/api/v1/cards/{id}` | none | 200 | 404 |
-| PATCH | `/api/v1/cards/{id}` | human | 200 | 403, 404, 409 `spec_locked`, 422 |
-| DELETE | `/api/v1/cards/{id}` | human | 204 | 403, 404 |
-| POST | `/api/v1/cards/{id}/transition` | human or agent | 200 | 403, 404, 409, 422 |
-| GET | `/api/v1/cards/{id}/comments` | none | 200 | 404 |
+| GET | `/api/v1/cards` | token | 200 | 401, 422 (bad paging) |
+| GET | `/api/v1/cards/{id}` | token | 200 | 401, 404 |
+| PATCH | `/api/v1/cards/{id}` | human | 200 | 401, 403, 404, 409 `spec_locked`, 422 |
+| DELETE | `/api/v1/cards/{id}` | human | 204 | 401, 403, 404 |
+| POST | `/api/v1/cards/{id}/transition` | human or agent | 200 | 401, 403, 404, 409, 422 |
+| GET | `/api/v1/cards/{id}/comments` | token | 200 | 401, 404 |
 | POST | `/api/v1/cards/{id}/comments` | human or agent | 201 | 401, 404, 422 |
-| PUT | `/api/v1/cards/{id}/assignee` | human | 200 | 403, 404, 409 `card_closed`, 422 |
+| PUT | `/api/v1/cards/{id}/assignee` | human | 200 | 401, 403, 404, 409 `card_closed`, 422 |
 | POST | `/api/v1/prds` | human | 201 | 401, 403, 422 `prd_too_large` |
-| GET | `/api/v1/prds` | none | 200 | - |
-| GET | `/api/v1/prds/{id}` | none | 200 | 404 |
-| POST | `/api/v1/prds/{id}/breakdown` | human | 201 | 403, 404, 422, 429, 502, 504 |
+| GET | `/api/v1/prds` | token | 200 | 401 |
+| GET | `/api/v1/prds/{id}` | token | 200 | 401, 404 |
+| POST | `/api/v1/prds/{id}/breakdown` | human | 201 | 401, 403, 404, 422, 429, 502, 504 |
 | GET | `/console` | none | 200 | - (static console, outside OpenAPI) |
+| GET | `/chat` | none | 200 | - (static chat, outside OpenAPI) |
 
-Read endpoints are public *in this iteration*. They become workspace-scoped when
-authentication lands in week 6; see ADR 0002.
+All API routes except `/api/v1/health` require a valid bearer token. Roles are
+still checked in services, so the token only establishes identity; see ADR 0009.
+Workspace scoping remains a later step (ADR 0002).
 
-The console is mounted from `app/web/` with `StaticFiles` under
-`/console/assets`. It is deliberately excluded from OpenAPI because it is not
-part of the API contract; every action it takes goes through the endpoints above
-with the selected `X-Actor-Id`, so the server's rules stay authoritative.
+The console and chat pages are mounted from `app/web/` with `StaticFiles` under
+`/console/assets` and `/chat/assets`. Both are excluded from OpenAPI because
+they are not part of the API contract; they sign in through `/auth/login`, keep
+the token under `zm.token`, and send it on every API call, so the server's rules
+stay authoritative.
 
 ## 7. The state machine
 
@@ -257,6 +275,7 @@ stage and any move out of `done`.
 | --- | --- | --- |
 | Closed stage enum and edge list | `services/cards.py` | 409 `illegal_transition` |
 | Agents may only take `ready→building`, `building→checks` | `HUMAN_ONLY_TRANSITIONS` | 403 `agent_not_allowed` |
+| An agent never moves a card to `Done` | `transition_card` explicit target check | 403 `agent_not_allowed` |
 | An agent works only its own card | `transition_card` | 403 `not_assignee` |
 | The builder cannot validate its own card | `built_by` comparison | 403 `self_validation_blocked` |
 | Creating/editing/deleting/assigning/PRDs/breakdown is human-only | `require_human` + service | 403 `human_only` |
@@ -267,7 +286,9 @@ stage and any move out of `done`.
 
 The guardrail order matters and is tested: for an agent trying to validate, the
 human-only check fires before the self-validation check, so the error code is
-`agent_not_allowed`, not `self_validation_blocked`.
+`agent_not_allowed`, not `self_validation_blocked`. The explicit `Done` check
+sits between the human-only edge check and the assignee check, so it holds even
+if a future edge into `Done` is not marked human-only.
 
 ## 8. Error model
 
@@ -281,7 +302,10 @@ Every failure, including framework-level ones, looks like:
 
 | Status | Code | Meaning |
 | --- | --- | --- |
-| 401 | `missing_actor` / `unknown_actor` | no or unregistered `X-Actor-Id` |
+| 401 | `missing_token` | no `Authorization` header |
+| 401 | `invalid_token` | bad scheme, signature, claims, issuer, expiry, unknown actor or role mismatch |
+| 401 | `invalid_credentials` | wrong username or password at login |
+| 500 | `auth_misconfigured` | signing secret shorter than 32 characters |
 | 403 | `human_only` | an agent tried a human action |
 | 403 | `agent_not_allowed` | an agent tried a human-only edge |
 | 403 | `not_assignee` | an agent tried another actor's card |
@@ -309,6 +333,7 @@ codes, not prose.
 | `CardRecord` | id, title, goal, criteria, stage, assignee, created_by, prd_id, depends_on, built_by, version, timestamps | `stage` is a `Stage`; `version` increments on every mutation; `built_by` is internal |
 | `CommentRecord` | id, card_id, author_id, body, created_at | append-only; never mutates the card; deleted with the card |
 | `PRDRecord` | id, title, body, created_by, created_at | body immutable after creation |
+| `UserRecord` | username, actor_id, role, password_hash | unique username; hash only, never plaintext; role maps to a seeded actor |
 | `AuditEntry` | event, subject_id, actor_id, at, extra | append-only; records transitions, assignment, comments, PRDs |
 
 Cards are ordered by `(created_at, id)` so two cards created in the same
@@ -364,6 +389,10 @@ global patching is needed.
 | --- | --- | --- |
 | `APP_ENV` | `local` | label only |
 | `FRONTEND_ORIGIN` | `http://localhost:5173` | the only CORS origin |
+| `JWT_SECRET` | unset | HS256 signing key; at least 32 characters, required for login |
+| `TOKEN_TTL_SECONDS` | `3600` | token lifetime |
+| `GANTRY_HUMAN_PASSWORD` | unset | used once by `scripts/setup_auth.py` for `ada` |
+| `GANTRY_AGENT_PASSWORD` | unset | used once by `scripts/setup_auth.py` for `builder` |
 | `BREAKDOWN_TIMEOUT_SECONDS` | `15` | whole-call deadline |
 | `BREAKDOWN_RATE_LIMIT` | `5` | requests per actor per window |
 | `BREAKDOWN_RATE_WINDOW_SECONDS` | `60` | window length |
@@ -376,36 +405,61 @@ global patching is needed.
 | `OPENROUTER_API_KEY` | unset | enables real models |
 | `OPENROUTER_BASE_URL` | `https://openrouter.ai/api/v1` | fixed upstream |
 
-## 12. Security checklist (OWASP API Top 10, 2023)
+The two `GANTRY_*_PASSWORD` variables are read by the user-run bootstrap script,
+not by the app; no credential is compiled into the server.
 
-| Risk | Current position | Gap / next step |
-| --- | --- | --- |
-| API1 Broken object level authorisation | No cross-tenant objects exist yet; ids are unguessable random hex | Week 6: workspace membership check on every read/write |
-| API2 Broken authentication | Explicit temporary header identity, documented as insecure; unknown ids are 401 | Week 6: real sessions, hashed passwords, expiry |
-| API3 Broken object property authorisation | `CardRead` whitelists fields; `built_by` and history never serialised; `extra="forbid"` blocks mass assignment | Add response tests per new field |
-| API4 Unrestricted resource consumption | Per-actor rate limit, 20k PRD cap, 10-card cap, 15 s deadline, 2k comment cap, paging cap | Week 7: Redis limiter shared across workers |
-| API5 Broken function level authorisation | `require_human`, agent-only edges, agent assignment rule | Add role matrix tests when roles multiply |
-| API6 Unrestricted business flows | Closed state machine, no skip edges, self-validation block, one assignee | Add per-actor transition rate limit if abuse appears |
-| API7 SSRF | No user-supplied URLs; the only outbound host is `OPENROUTER_BASE_URL` | Never let a request override the base URL |
-| API8 Security misconfiguration | Single CORS origin, no `*`, unexpected errors return a generic body, no debug flag, no secrets in logs | Add security headers at the proxy |
-| API9 Improper inventory management | OpenAPI at `/docs` and `/openapi.json`; `/api/v1/meta` lists stages, edges, models and limits | Version the API before week 4 frontend work |
-| API10 Unsafe consumption of third-party APIs | Model output is schema-validated and graph-checked; injection is scanned; prompts treat PRD text as data | Add output moderation and per-model budgets |
+## 12. Security checklist (OWASP API Top 10, 2025)
+
+| ID | Risk | Gantry position | Gap / next step |
+| --- | --- | --- | --- |
+| A01 | Broken Access Control | Roles are checked in services on every call; agents never reach `done`; default deny | None |
+| A02 | Security Misconfiguration | Single CORS origin, no debug flag, `.env` gitignored | Add security headers at the proxy |
+| A03 | Software Supply Chain Failures | Versions pinned in `requirements.txt`; only the packages the app needs | None |
+| A04 | Cryptographic Failures | Argon2id-hashed passwords; `JWT_SECRET` only in `.env` | The `.env.example` placeholder is documented and accepted (low) |
+| A05 | Injection | Parameterised queries only; `app/ai/safety.py` scans model prompts | None |
+| A06 | Insecure Design | The builder cannot validate its own card; no design-level bypass | None |
+| A07 | Authentication Failures | Hashed login, expiring tokens, per-username login rate limit | Week 7: Redis limiter shared across workers |
+| A08 | Software or Data Integrity Failures | Alembic migrations only; no backup endpoint | Verify a backup before restore |
+| A09 | Security Logging and Alerting Failures | `audit_log` records transitions and `auth.login_failed` | None |
+| A10 | Mishandling of Exceptional Conditions | Uniform error envelope; `details` carries no file paths or SQL | None |
+
+### S15 audit findings
+
+The S15 audit (`step/S15-owasp-audit`) closed the two real gaps and recorded the
+rest:
+
+| Finding | OWASP | Decision | Where |
+| --- | --- | --- | --- |
+| Login had no rate limit | A07 | Fixed | `app/api/auth.py`, `app/api/deps.py`, `app/main.py`, `app/config.py` |
+| Failed logins were not audited | A09 | Fixed | `app/services/auth.py` |
+| Placeholder `JWT_SECRET` in `.env.example` | A04 | Accepted (low) | `.env.example` |
+| Old `prd_id` finding in `docs/ROADMAP.md` | A06/A10 | Closed as obsolete | `CardCreate` has no `prd_id`; breakdown validates with `get_prd_or_404` |
+
+The review is reproducible with the read-only subagent in
+`.opencode/agents/security-reviewer.md`:
+
+```text
+Use the security-reviewer subagent to review the diff of this branch against the OWASP checklist. List findings with file:line. Fix the ones I approve.
+```
 
 Additional hygiene:
 
 - The OpenRouter key is read from the environment and never logged or returned.
+- Passwords and `JWT_SECRET` come from the environment too; neither is logged,
+  returned or committed. Test fixtures use fake values only.
 - `Settings` is frozen; there is no runtime path that changes limits.
 - The mock providers are the default, so a missing key degrades to a documented
   offline mode instead of a crash at request time.
-- Every mutation writes an audit entry with the actor id and timestamp.
+- Every mutation writes an audit entry with the actor id and timestamp, and a
+  failed login writes `auth.login_failed`.
 
 ## 13. Observability
 
 - **Request id** on every response, echoed from the client when supplied, so a
   browser error can be matched to a server log line.
 - **Audit log** in the store: `card.created`, `card.updated`, `card.transitioned`,
-  `card.assigned`, `card.deleted`, `comment.created`, `prd.created`, each with
-  actor, subject, timestamp and relevant extras.
+  `card.assigned`, `card.deleted`, `comment.created`, `prd.created` and
+  `auth.login_failed`, each with actor, subject, timestamp and relevant extras.
 - **Breakdown warnings** carry per-attempt failures, injection labels, fallback
   and attempt counts to the caller.
 - Unexpected exceptions are logged with `logger.exception`, and the client only
@@ -419,12 +473,12 @@ and a breakdown latency histogram per model.
 | Limit | Consequence | Planned change |
 | --- | --- | --- |
 | In-memory repository (tests) | Data disappears on restart by design; one process only | PostgreSQL via `DATABASE_URL` is the durable store |
-| Header identity | Anyone can claim any seeded actor | Login and sessions in week 6 |
+| Token lifetime only | Tokens expire but cannot yet be revoked or refreshed; only `ada` and `builder` have accounts | Add refresh, revocation and user management |
 | In-process limiter | Limits are per worker | Redis in week 7 |
 | No frontend | API-only | Vue board in week 4 |
 | Mock models by default | Quality numbers describe the harness, not a vendor | Run the same evals with real ids |
 | Hashing embeddings | Lexical matching only | pgvector + a real embedding model |
-| No migration framework | Schema changes are code changes | Alembic with the database |
+| Alembic migrations are user-run | Schema changes are not applied automatically | Keep migrations reviewed and run them before `setup_auth.py` |
 
 PostgreSQL is the durable store; the in-memory repository is for tests and quick
 local runs. The interfaces are drawn so these replacements do not touch the HTTP

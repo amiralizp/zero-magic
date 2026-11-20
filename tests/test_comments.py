@@ -8,7 +8,15 @@ from __future__ import annotations
 
 import pytest
 
-from tests.helpers import AGENT, HUMAN, HUMAN2, advance_to, create_card, headers
+from tests.helpers import (
+    AGENT,
+    HUMAN,
+    HUMAN2,
+    advance_to,
+    create_card,
+    headers,
+    raw_client,
+)
 
 
 def test_add_comment_returns_the_typed_comment(client):
@@ -94,13 +102,13 @@ def test_oversized_comment_is_422(client):
     assert response.json()["error"]["code"] == "invalid_payload"
 
 
-def test_comment_requires_an_actor(client):
+def test_comment_requires_a_token(client):
     card = create_card(client)
-    response = client.post(
+    response = raw_client(client.app).post(
         f"/api/v1/cards/{card['id']}/comments", json={"body": "Hello"}
     )
     assert response.status_code == 401
-    assert response.json()["error"]["code"] == "missing_actor"
+    assert response.json()["error"]["code"] == "missing_token"
 
 
 def test_comment_on_missing_card_is_404(client):

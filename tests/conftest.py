@@ -1,4 +1,4 @@
-"""Shared fixtures: a fresh app and store per test."""
+"""Shared fixtures: a fresh app, token client and store per test."""
 
 from __future__ import annotations
 
@@ -9,6 +9,12 @@ from fastapi.testclient import TestClient
 
 from app.config import Settings
 from app.main import create_app
+from tests.helpers import (
+    TEST_JWT_SECRET,
+    TEST_TOKEN_TTL_SECONDS,
+    AuthenticatedTestClient,
+    seed_test_users,
+)
 
 
 @pytest.fixture
@@ -23,15 +29,19 @@ def settings() -> Settings:
         primary_model="mock-strong",
         fallback_model="mock-fast",
         frontend_origin="http://localhost:5173",
+        jwt_secret=TEST_JWT_SECRET,
+        token_ttl_seconds=TEST_TOKEN_TTL_SECONDS,
     )
 
 
 @pytest.fixture
 def app(settings: Settings):
-    return create_app(settings=settings)
+    application = create_app(settings=settings)
+    seed_test_users(application.state.store)
+    return application
 
 
 @pytest.fixture
 def client(app) -> Iterator[TestClient]:
-    with TestClient(app) as test_client:
+    with AuthenticatedTestClient(app) as test_client:
         yield test_client

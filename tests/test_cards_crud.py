@@ -15,7 +15,9 @@ from tests.helpers import (
     card_payload,
     create_card,
     headers,
+    make_client,
     move,
+    raw_client,
 )
 
 
@@ -43,19 +45,20 @@ def test_create_card_returns_typed_public_shape(client):
     assert "history" not in body
 
 
-def test_create_requires_a_known_actor(client):
-    missing = client.post("/api/v1/cards", json=card_payload())
+def test_create_requires_a_valid_token():
+    anonymous = make_client(auth=False)
+    missing = anonymous.post("/api/v1/cards", json=card_payload())
     assert missing.status_code == 401
-    assert missing.json()["error"]["code"] == "missing_actor"
+    assert missing.json()["error"]["code"] == "missing_token"
 
-    unknown = client.post(
+    invalid = anonymous.post(
         "/api/v1/cards",
-        headers={"X-Actor-Id": "agent:superuser"},
+        headers={"Authorization": "Bearer not-a-signed-token"},
         json=card_payload(),
     )
-    assert unknown.status_code == 401
-    assert unknown.json()["error"]["code"] == "unknown_actor"
-    assert unknown.headers["www-authenticate"] == "Actor"
+    assert invalid.status_code == 401
+    assert invalid.json()["error"]["code"] == "invalid_token"
+    assert invalid.headers["www-authenticate"] == "Bearer"
 
 
 def test_an_agent_cannot_create_a_card(client):

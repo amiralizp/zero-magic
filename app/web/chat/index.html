@@ -32,6 +32,22 @@
                 <select id="modelSelect" class="model-select" aria-label="انتخاب مدل"></select>
             </div>
             <div class="header-right">
+                <div class="chat-auth">
+                    <form id="chatLoginForm" class="chat-login" autocomplete="off">
+                        <input id="chatUsername" class="auth-input" value="ada" aria-label="نام کاربری" autocomplete="username" required maxlength="80">
+                        <input id="chatPassword" class="auth-input" type="password" placeholder="رمز عبور" aria-label="رمز عبور" autocomplete="current-password" required maxlength="200">
+                        <button id="chatLoginBtn" class="btn-icon" type="submit" title="ورود">
+                            <i class="bi bi-box-arrow-in-right"></i>
+                        </button>
+                    </form>
+                    <div id="chatIdentity" class="chat-identity" hidden>
+                        <span id="chatIdentityName" class="chat-identity-name"></span>
+                        <button id="chatLogoutBtn" class="btn-icon" type="button" title="خروج">
+                            <i class="bi bi-box-arrow-right"></i>
+                        </button>
+                    </div>
+                    <span id="chatAuthError" class="chat-auth-error" role="alert" hidden></span>
+                </div>
                 <a class="btn-icon" href="/console" title="بازگشت به کنسول">
                     <i class="bi bi-grid"></i>
                 </a>

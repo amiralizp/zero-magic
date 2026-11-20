@@ -33,6 +33,15 @@ same HTTP API and adds no build step or dependency.
   evidence about a real model.
 - Tests must not call real APIs or need a key.
 
+## Security checklist (OWASP API Top 10, 2025)
+
+A01 access control in services; A02 CORS closed and `.env` gitignored; A03 pinned
+dependencies; A04 Argon2id and `JWT_SECRET` in `.env`; A05 parameterised queries
+and the `ai/safety.py` injection scan; A06 no self-validation; A07 hashed login,
+expiring tokens and a per-username login rate limit; A08 Alembic-only migrations;
+A09 audit log for transitions and failed logins; A10 uniform error envelope with
+no paths or SQL in `details`. See `docs/architecture.md` section 12.
+
 ## Before you finish
 
 1. `python -m pytest` is green (currently 167 tests).

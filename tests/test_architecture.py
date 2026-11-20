@@ -551,3 +551,87 @@ def test_services_and_api_may_import_repository_errors():
 
     vs2 = _check(src, "app/api/foo.py")
     assert vs2 == [], f"repository errors import was flagged: {vs2}"
+
+
+# --- S12 authentication rules ------------------------------------------------
+
+AUTH_CRYPTO_MODULES = {"jwt", "argon2"}
+AUTH_CRYPTO_OWNER = "app/services/auth.py"
+
+
+def _auth_crypto_import_lines(source: str) -> list[int]:
+    """Return lines importing a token or password-hashing library."""
+
+    tree = ast.parse(source)
+    lines: list[int] = []
+    for node in ast.walk(tree):
+        module = None
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                top = alias.name.split(".")[0]
+                if top in AUTH_CRYPTO_MODULES:
+                    lines.append(node.lineno)
+            continue
+        if isinstance(node, ast.ImportFrom):
+            module = node.module or ""
+            top = module.split(".")[0]
+            if top in AUTH_CRYPTO_MODULES:
+                lines.append(node.lineno)
+    return sorted(set(lines))
+
+
+def test_only_the_auth_service_imports_crypto_libraries():
+    # Positive controls: the detector sees both import forms.
+    assert _auth_crypto_import_lines("import jwt\nimport argon2\n") == [1, 2]
+    assert _auth_crypto_import_lines("from jwt import decode\n") == [1]
+
+    for path in sorted((ROOT / "app").rglob("*.py")):
+        rel = path.relative_to(ROOT).as_posix()
+        hits = _auth_crypto_import_lines(path.read_text(encoding="utf-8"))
+        if rel == AUTH_CRYPTO_OWNER:
+            assert hits, f"{rel}: expected the auth service to own crypto imports"
+        else:
+            assert not hits, f"{rel}: imports jwt/argon2 on line(s) {hits}"
+
+
+def test_api_layer_does_not_read_a_legacy_identity_header():
+    # Positive control: a regression would be caught.
+    assert "X-Actor-Id" in "headers['X-Actor-Id']"
+
+    for path in sorted((ROOT / "app" / "api").rglob("*.py")):
+        rel = path.relative_to(ROOT).as_posix()
+        source = path.read_text(encoding="utf-8")
+        assert "X-Actor-Id" not in source, f"{rel}: legacy identity header is still present"
+
+
+def test_chat_request_schema_has_no_actor_field():
+    path = ROOT / "app" / "schemas" / "chat.py"
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    model = next(
+        node
+        for node in tree.body
+        if isinstance(node, ast.ClassDef) and node.name == "ChatCompletionRequest"
+    )
+    fields = {
+        node.target.id
+        for node in model.body
+        if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name)
+    }
+    assert "messages" in fields  # positive control: the model was found
+    assert "actor" not in fields
+
+
+def test_auth_service_is_framework_free():
+    path = ROOT / "app" / "services" / "auth.py"
+    rel = path.relative_to(ROOT).as_posix()
+    forbidden = {"fastapi", "starlette", "httpx", "app.api", "app.presenters"}
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                top = alias.name.split(".")[0]
+                assert top not in forbidden, f"{rel}:{node.lineno}: imports {alias.name}"
+        if isinstance(node, ast.ImportFrom):
+            module = node.module or ""
+            top = module.split(".")[0]
+            assert top not in forbidden, f"{rel}:{node.lineno}: imports from {module}"

@@ -1,8 +1,8 @@
 """Behavior-lock tests for chat policy (S8.5b).
 
-Pin the missing-key precondition, the upstream status -> hint mapping and the
-actor fallback from the request body, so the S8.5b refactor can move them out
-of the router without changing behavior.
+Pin the missing-key precondition and the upstream status -> hint mapping.
+Since S12 the acting identity comes only from a signed token, so the request
+body cannot claim an actor.
 """
 
 from __future__ import annotations
@@ -10,7 +10,7 @@ from __future__ import annotations
 import httpx
 
 import app.api.chat as chat_api
-from tests.helpers import make_client
+from tests.helpers import AGENT, headers, make_client
 
 
 def _events(response):
@@ -87,22 +87,18 @@ def test_upstream_unmapped_status(monkeypatch):
     assert "error 500" in err
 
 
-def test_actor_fallback_from_body():
+def test_actor_body_claim_is_rejected():
     client = make_client(chat_api_key="test-key")
     response = client.post(
         "/api/v1/chat/completions",
         json={"messages": [{"role": "user", "content": "hi"}], "actor": "human:ada"},
     )
-    # No key configured? Actually key is set. The request goes through validation
-    # and reaches the provider. We just check it is not a 401 unknown_actor.
-    # (The provider call will fail because complete is not mocked, but the
-    # actor resolution itself must succeed.)
-    assert response.status_code in (200, 500)  # not 401
-    if response.status_code != 200:
-        assert "unknown_actor" not in response.text
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "invalid_payload"
+    assert "unknown_actor" not in response.text
 
 
-def test_actor_header_wins_over_body(monkeypatch):
+def test_token_identity_drives_the_chat_system_prompt(monkeypatch):
     captured = {}
 
     async def fake_complete(self, messages, model=None, temperature=0.7, max_tokens=2048, tools=None):
@@ -113,17 +109,18 @@ def test_actor_header_wins_over_body(monkeypatch):
     client = make_client(chat_api_key="test-key")
     response = client.post(
         "/api/v1/chat/completions",
-        headers={"X-Actor-Id": "human:ada"},
-        json={"messages": [{"role": "user", "content": "hi"}], "actor": "human:grace"},
+        headers=headers(AGENT),
+        json={"messages": [{"role": "user", "content": "hi"}]},
     )
     assert response.status_code == 200
+    assert AGENT in captured["messages"][0]["content"]
 
 
-def test_actor_unknown_body_returns_401():
+def test_unknown_body_actor_is_still_rejected():
     client = make_client(chat_api_key="test-key")
     response = client.post(
         "/api/v1/chat/completions",
         json={"messages": [{"role": "user", "content": "hi"}], "actor": "human:nobody"},
     )
-    assert response.status_code == 401
-    assert response.json()["error"]["code"] == "unknown_actor"
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "invalid_payload"
