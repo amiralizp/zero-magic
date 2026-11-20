@@ -1,7 +1,7 @@
-"""Storage selection: SQL Server when configured, memory otherwise.
+"""Storage selection: PostgreSQL when configured, memory otherwise.
 
-The SQL path is exercised against a real server by hand; these tests keep the
-suite independent of a running database.
+The PostgreSQL path is exercised against a real database by the contract tests
+when GANTRY_TEST_DATABASE_URL is set; these tests need no running database.
 """
 
 from __future__ import annotations
@@ -23,8 +23,19 @@ def test_health_reports_which_store_is_active(client):
     assert payload["storage"] == "memory"
 
 
-def test_a_configured_login_selects_sql_server():
-    settings = Settings(db_user="gantry_app", db_password="secret")
-    assert settings.db_user == "gantry_app"
-    # Building it would connect; the selection rule is what matters here.
-    assert settings.db_user != ""
+def test_database_url_selects_postgres_without_connecting(monkeypatch):
+    from app.repositories import factory
+
+    captured: list[Settings] = []
+
+    class FakePostgresRepository:
+        kind = "postgres"
+
+        def __init__(self, settings: Settings) -> None:
+            captured.append(settings)
+
+    monkeypatch.setattr(factory, "PostgresRepository", FakePostgresRepository)
+    settings = Settings(database_url="postgresql+psycopg://u:p@127.0.0.1:5432/db")
+    store = build_repository(settings)
+    assert isinstance(store, FakePostgresRepository)
+    assert captured == [settings]

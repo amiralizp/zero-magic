@@ -18,7 +18,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .ai.providers.base import BreakdownProvider
 from .ai.registry import ProviderRegistry, build_providers
-from .api import assignment, cards, comments, meta, ops, prds, chat
+from .api import assignment, cards, comments, meta, prds, chat
 from .config import Settings
 from .repositories.factory import Repository, build_repository
 from .errors import install_error_handlers
@@ -95,7 +95,6 @@ def create_app(
     app.include_router(assignment.router)
     app.include_router(prds.router)
     app.include_router(chat.router)
-    app.include_router(ops.router)
 
     app.mount(
         "/console/assets",

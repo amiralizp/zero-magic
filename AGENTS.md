@@ -11,8 +11,8 @@ validate, agents build. Week 3 adds PRD-to-cards breakdown with a model that is
 validated, retried, rate-limited and scored. A build-free console at `/console`
 exercises the same HTTP API.
 
-Not present yet: Docker, authentication, the week-4 frontend, PostgreSQL. Persistence is
-SQL Server when `DB_USER` is set and the in-memory repository otherwise; both live
+Not present yet: Docker, authentication and the week-4 frontend. PostgreSQL is the durable
+store when `DATABASE_URL` is set and the in-memory repository otherwise; both live
 behind one interface (`app/repositories/factory.py` picks). The console in `app/web/` is a
 convenience page, not that frontend; do not add a bundler or a new dependency
 for it.
@@ -79,7 +79,7 @@ BUG-001 in `docs/test-plan.md`).
 | Settings from env | `app/config.py` |
 | Error types and handlers | `app/errors.py` |
 | In-memory repository and audit log | `app/repositories/memory.py` |
-| SQL Server repository, schema, pool | `app/repositories/sql_server.py` |
+| PostgreSQL repository | `app/repositories/postgres.py` |
 | Repository selection from settings | `app/repositories/factory.py` |
 | Seeded actors | `app/actors.py` |
 | Record -> public model | `app/presenters.py` |
@@ -115,8 +115,8 @@ read the store or build HTTP responses.
 - Keep the eval gate green. A prompt change that lowers validity is a
   regression, even if the average score rises.
 - Run the full suite before finishing: `python -m pytest`.
-- The suite must never require SQL Server. Tests use the in-memory store; the
-  SQL path is checked by hand against a real server.
+- The suite must never require a database server; PostgreSQL contract tests run
+  only when `GANTRY_TEST_DATABASE_URL` is set.
 
 ## Style
 
@@ -159,7 +159,7 @@ this everywhere; docs/critique.md lists the violations. New code must follow it.
   checked in services on every call.
 
 Never edit or weaken a test to make it pass. If a test and a rule disagree, stop
-and ask. Do not read, print or edit .env; never commit .env, backups/ or *.bak.
+and ask. Do not read, print or edit .env; never commit .env.
 Do not change the public error codes or status codes: they are the contract.
 Make one small change at a time and run `pytest -q` after each module.
 
@@ -169,7 +169,7 @@ Make one small change at a time and run `pytest -q` after each module.
 - Do ONE roadmap step per session, then stop and wait for me.
 - Before any commit run `pytest -q`. If anything is red, stop and report.
 - Stage specific files only: `git add <path>`. Never `git add .` or `git add -A`.
-- Never stage .env, backups/, .venv, *.bak, *.log.
+- Never stage .env, .venv or *.log.
 - Before committing, show me: `git status`, `git diff --stat` and the proposed commit message. Wait for my OK.
 - Commit message format: type(scope): short summary. Types: feat, fix, refactor, test, docs, chore.
 - After the commit, tick the step in docs/ROADMAP.md.
