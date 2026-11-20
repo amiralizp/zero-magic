@@ -102,6 +102,12 @@ existing users are not overwritten. Tokens expire after `TOKEN_TTL_SECONDS`;
 there is no refresh or logout endpoint yet, so the browser discards its token on
 log out.
 
+Login attempts are limited per username: `LOGIN_RATE_LIMIT` attempts per
+`LOGIN_RATE_WINDOW_SECONDS` (default 10 per 60 s). The next attempt inside the
+window returns `429 rate_limited` with a `Retry-After` header. Failed logins are
+written to the audit log as `auth.login_failed` (username and reason only, never
+the password).
+
 ## Interactive console
 
 `/console` is a build-free page served by the app: plain HTML, CSS and

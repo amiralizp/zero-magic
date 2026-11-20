@@ -60,6 +60,12 @@ def create_app(
         limit=settings.breakdown_rate_limit,
         window_seconds=settings.breakdown_rate_window_seconds,
     )
+    # Login gets its own counter so a burst of breakdowns cannot lock out a
+    # user, and brute-force attempts cannot consume the breakdown budget.
+    app.state.login_limiter = SlidingWindowLimiter(
+        limit=settings.login_rate_limit,
+        window_seconds=settings.login_rate_window_seconds,
+    )
 
     install_error_handlers(app)
     app.add_middleware(

@@ -11,12 +11,20 @@ from typing import Annotated
 from fastapi import APIRouter, Depends
 
 from ..config import Settings
+from ..errors import AppError
+from ..rate_limit import SlidingWindowLimiter
 from ..repositories.factory import Repository
 from ..schemas.actors import Actor
 from ..schemas.auth import LoginRequest, LoginResponse, MeResponse
 from ..schemas.common import ErrorEnvelope
 from ..services import auth as auth_service
-from .deps import get_settings, get_store, get_token_identity, require_actor
+from .deps import (
+    get_login_limiter,
+    get_settings,
+    get_store,
+    get_token_identity,
+    require_actor,
+)
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
@@ -38,7 +46,21 @@ async def login(
     payload: LoginRequest,
     store: Annotated[Repository, Depends(get_store)],
     settings: Annotated[Settings, Depends(get_settings)],
+    limiter: Annotated[SlidingWindowLimiter, Depends(get_login_limiter)],
 ) -> LoginResponse:
+    retry_after = limiter.hit(f"login:{payload.username.lower()}")
+    if retry_after is not None:
+        seconds = max(1, int(retry_after) + 1)
+        raise AppError(
+            429,
+            "rate_limited",
+            "Too many login attempts. Try again later.",
+            details={
+                "limit": settings.login_rate_limit,
+                "window_seconds": settings.login_rate_window_seconds,
+            },
+            headers={"Retry-After": str(seconds)},
+        )
     token = auth_service.authenticate(
         store,
         payload.username,

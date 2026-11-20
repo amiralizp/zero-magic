@@ -146,6 +146,13 @@ def authenticate(
     _require_secret(secret)
     user = store.get_user_by_username(username)
     if user is None or not verify_password(user.password_hash, password):
+        # Never log the password or a hash; the username is the only subject.
+        store.audit(
+            "auth.login_failed",
+            username,
+            None,
+            {"reason": "invalid_credentials"},
+        )
         raise AppError(
             status_code=401,
             code="invalid_credentials",

@@ -62,6 +62,37 @@ def test_bad_credentials_are_a_generic_401(username, password):
     assert response.headers["www-authenticate"] == "Bearer"
 
 
+def test_failed_login_is_written_to_the_audit_log():
+    client = make_client(auth=False)
+    response = _login(client, "ada", "wrong-password")
+    assert response.status_code == 401
+    entries = [
+        entry
+        for entry in client.app.state.store.audit_log
+        if entry["event"] == "auth.login_failed"
+    ]
+    assert len(entries) == 1
+    assert entries[0]["subject_id"] == "ada"
+    assert entries[0]["actor_id"] is None
+    assert entries[0]["extra"] == {"reason": "invalid_credentials"}
+    assert "wrong-password" not in str(entries)
+
+
+def test_login_is_rate_limited_per_username():
+    client = make_client(auth=False, login_rate_limit=2)
+    assert [_login(client, "ada", "wrong-password").status_code for _ in range(3)] == [
+        401,
+        401,
+        429,
+    ]
+    response = _login(client, "ada", TEST_HUMAN_PASSWORD)
+    assert response.status_code == 429
+    assert response.json()["error"]["code"] == "rate_limited"
+    assert response.headers["retry-after"]
+    # The budget belongs to the username, not to the whole login endpoint.
+    assert _login(client, "builder", TEST_AGENT_PASSWORD).status_code == 200
+
+
 def test_login_token_works_on_a_protected_route():
     anonymous = make_client(auth=False)
     token = _login(anonymous, "ada", TEST_HUMAN_PASSWORD).json()["access_token"]

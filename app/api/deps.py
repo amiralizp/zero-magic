@@ -38,6 +38,10 @@ def get_limiter(request: Request) -> SlidingWindowLimiter:
     return request.app.state.limiter
 
 
+def get_login_limiter(request: Request) -> SlidingWindowLimiter:
+    return request.app.state.login_limiter
+
+
 def get_token_identity(request: Request) -> TokenIdentity:
     """Verify the Authorization header and return the claimed identity."""
 
