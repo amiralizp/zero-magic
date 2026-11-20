@@ -126,6 +126,9 @@ def test_openapi_lists_every_endpoint_and_the_error_envelope(client):
         assert path in paths, path
         assert method in paths[path], (path, method)
 
+    # S11b removed backup/admin operations; S13 must not bring them back.
+    assert not any(path.startswith("/api/v1/backup") for path in paths), paths.keys()
+
     assert "ErrorEnvelope" in spec["components"]["schemas"]
     schemas = spec["components"]["schemas"]
     card_read = schemas["CardRead"]

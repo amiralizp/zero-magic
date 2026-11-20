@@ -4,13 +4,17 @@ from __future__ import annotations
 
 import pytest
 
+from app.schemas.actors import ActorRole
 from app.schemas.chat import ChatCompletionRequest
+from app.services.auth import issue_token
 
 from tests.helpers import (
     AGENT,
     HUMAN,
     TEST_AGENT_PASSWORD,
     TEST_HUMAN_PASSWORD,
+    TEST_JWT_SECRET,
+    TEST_TOKEN_TTL_SECONDS,
     headers,
     make_client,
     raw_client,
@@ -160,6 +164,30 @@ def test_tokens_are_bound_to_a_signed_in_user():
     assert response.status_code == 200
     assert response.json()["actor_id"] == AGENT
     assert response.json()["role"] == "agent"
+
+
+@pytest.mark.parametrize(
+    ("actor_id", "username", "claimed_role"),
+    [
+        (HUMAN, "ada", ActorRole.AGENT),
+        (AGENT, "builder", ActorRole.HUMAN),
+    ],
+)
+def test_token_role_must_match_the_stored_actor_role(actor_id, username, claimed_role):
+    client = make_client(auth=False)
+    forged = issue_token(
+        actor_id=actor_id,
+        username=username,
+        role=claimed_role,
+        secret=TEST_JWT_SECRET,
+        ttl_seconds=TEST_TOKEN_TTL_SECONDS,
+    )
+    response = client.get(
+        "/api/v1/auth/me", headers={"Authorization": f"Bearer {forged}"}
+    )
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "invalid_token"
+    assert response.headers["www-authenticate"] == "Bearer"
 
 
 def test_raw_client_helper_does_not_add_a_token():

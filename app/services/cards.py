@@ -163,6 +163,18 @@ def transition_card(
                 f"An agent may not move a card from {card.stage.value} to {target.value}.",
                 details={"current_stage": card.stage.value, "requested_stage": target.value},
             )
+        # Independent of the edge list: no future edge into Done may ever be
+        # taken by an agent, even if it is not marked human-only.
+        if target is Stage.DONE:
+            raise AppError(
+                403,
+                "agent_not_allowed",
+                "An agent may never move a card to Done.",
+                details={
+                    "current_stage": card.stage.value,
+                    "requested_stage": target.value,
+                },
+            )
         if card.assignee_id is not None and card.assignee_id != actor.id:
             raise AppError(
                 403,

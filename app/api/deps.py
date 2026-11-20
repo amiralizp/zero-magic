@@ -73,6 +73,15 @@ def require_actor(
             "The token names an unknown actor.",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    # The store is authoritative: a signed token cannot claim a role the actor
+    # does not actually have. Mismatches are an authentication failure, not 403.
+    if identity.role is not actor.role:
+        raise AppError(
+            401,
+            "invalid_token",
+            "The token's role does not match the actor.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     return actor
 
 
