@@ -26,7 +26,9 @@ uvicorn app.main:app --reload
 
 Open <http://127.0.0.1:8000/docs> for the API reference and
 <http://127.0.0.1:8000/console> for the interactive console. The API works with
-no API key: the default model providers are deterministic offline mocks.
+no API key: the default model providers are deterministic offline mocks. This
+quick start uses the in-memory store; for the durable PostgreSQL setup see
+[Database (PostgreSQL)](#database-postgresql).
 
 To run without a terminal, double-click **`start-gantry.bat`** in this folder.
 It starts the server on port 8010, opens the console in your browser, and keeps
@@ -298,15 +300,26 @@ PostgreSQL is the durable store. `DATABASE_URL` selects it; with an empty
 `DATABASE_URL` the app uses `InMemoryRepository`, so tests and a quick look at
 the API need no database server.
 
-Create the local database and role once with `scripts/setup-local-db.ps1`, then
-set the URL in `.env`:
+Create the local database and role once with `scripts/setup-local-db.ps1`; it
+writes `DATABASE_URL` to `.env` itself. Run it in a normal PowerShell window,
+not through an agent, because it asks for the PostgreSQL admin password:
 
 ```powershell
-DATABASE_URL=postgresql+psycopg://gantry_app:...@127.0.0.1:5432/gantry
+.\scripts\setup-local-db.ps1
 ```
 
-Schema changes go through Alembic. Run the migrations yourself (they need
-`DATABASE_URL` in the environment):
+The full local run with PostgreSQL is then:
+
+```powershell
+& .venv\Scripts\python.exe -m alembic upgrade head
+& .venv\Scripts\python.exe scripts\setup_auth.py
+& .venv\Scripts\python.exe -m uvicorn app.main:app --reload
+```
+
+`setup_auth.py` creates the `ada` (human) and `builder` (agent) login accounts
+from `GANTRY_HUMAN_PASSWORD` and `GANTRY_AGENT_PASSWORD` in `.env`. Sign in at
+`/console` or `/docs` with those values. Schema changes go through Alembic; the
+migration commands need `DATABASE_URL` in the environment:
 
 ```powershell
 & .venv\Scripts\python.exe -m alembic upgrade head
@@ -314,7 +327,8 @@ Schema changes go through Alembic. Run the migrations yourself (they need
 & .venv\Scripts\python.exe -m alembic current
 ```
 
-There is no backup endpoint; revisit backups with `pg_dump` after S15.
+There is no backup endpoint; take backups with `pg_dump` and verify a backup
+before restoring it.
 
 
 ## Project layout
