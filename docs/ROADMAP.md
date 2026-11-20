@@ -154,6 +154,8 @@
   - **Commit:** `feat(db): add alembic with two migrations`
 
 - [ ] **S11 — Repository واقعی، تست ماندگاری و بکاپ**  (branch: `step/S11-<slug>`)
+    - [x] S11a PostgresRepository with the shared contract tests (step/S11a-postgres-repository)
+    - [ ] S11b remove SQL Server (sql_server.py, pytds, backup.py), decide the backup button, close S8.10
   - **Goal:** جایگزین SqlServerStore شوی و ثابت کنی کارت‌ها بعد از ری‌استارت می‌مانند.
   - **Tasks:**
     - `app/repositories/postgres.py` را با همان interface بنویس و با تنظیمات انتخاب کن.
@@ -164,6 +166,8 @@
   - **Prompt:** `Implement repositories/postgres.py behind the existing interface and run the same repository tests against memory and postgres. Then remove the SQL Server code and python-tds. Ask before deleting files.`
   - **Done when:** کارت بعد از ری‌استارت هنوز هست و هیچ اشاره‌ای به SQL Server در کد نمانده.
   - **Commit:** `feat(db): postgres repository replaces sql server`
+
+  - [ ] S15 finding: prd_id is not validated in services (POST /cards with an unknown prd_id); decide in S15 (OWASP A06/A10)
 
 ## بخش: امنیت
 
