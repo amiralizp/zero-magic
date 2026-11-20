@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 
 from ..actors import SEED_ACTORS
 from ..records import CardRecord, CommentRecord, PRDRecord
+from ..repositories.errors import RepositoryIntegrityError, RepositoryNotFoundError
 from ..schemas.actors import Actor
 from ..schemas.cards import Stage
 
@@ -66,6 +67,18 @@ class InMemoryRepository:
         depends_on: list[str] | None = None,
     ) -> CardRecord:
         with self._lock:
+            if created_by not in self.actors:
+                raise RepositoryIntegrityError(
+                    f"unknown actor for created_by: {created_by!r}"
+                )
+            if assignee_id is not None and assignee_id not in self.actors:
+                raise RepositoryIntegrityError(
+                    f"unknown actor for assignee_id: {assignee_id!r}"
+                )
+            if prd_id is not None and prd_id not in self.prds:
+                raise RepositoryIntegrityError(
+                    f"unknown prd for prd_id: {prd_id!r}"
+                )
             now = utcnow()
             record = CardRecord(
                 id=self._new_id("card", self.cards),
@@ -118,6 +131,27 @@ class InMemoryRepository:
         self, card_id: str, *, actor_id: str | None = None, **changes: object
     ) -> CardRecord:
         with self._lock:
+            if card_id not in self.cards:
+                raise RepositoryNotFoundError(f"card {card_id!r} does not exist")
+            if "built_by" in changes and changes["built_by"] is not None and changes["built_by"] not in self.actors:
+                raise RepositoryIntegrityError(
+                    f"unknown actor for built_by: {changes['built_by']!r}"
+                )
+            if "created_by" in changes and changes["created_by"] is not None and changes["created_by"] not in self.actors:
+                raise RepositoryIntegrityError(
+                    f"unknown actor for created_by: {changes['created_by']!r}"
+                )
+            if "assignee_id" in changes and changes["assignee_id"] is not None and changes["assignee_id"] not in self.actors:
+                raise RepositoryIntegrityError(
+                    f"unknown actor for assignee_id: {changes['assignee_id']!r}"
+                )
+            if "prd_id" in changes and changes["prd_id"] is not None and changes["prd_id"] not in self.prds:
+                raise RepositoryIntegrityError(
+                    f"unknown prd for prd_id: {changes['prd_id']!r}"
+                )
+            for _json_field in ("acceptance_criteria", "out_of_scope", "depends_on"):
+                if _json_field in changes and not isinstance(changes[_json_field], list):
+                    raise ValueError(f"{_json_field} must be a list")
             current = self.cards[card_id]
             updated = replace(
                 current,
@@ -143,6 +177,14 @@ class InMemoryRepository:
 
     def create_comment(self, card_id: str, author_id: str, body: str) -> CommentRecord:
         with self._lock:
+            if card_id not in self.cards:
+                raise RepositoryIntegrityError(
+                    f"unknown card for card_id: {card_id!r}"
+                )
+            if author_id not in self.actors:
+                raise RepositoryIntegrityError(
+                    f"unknown actor for author_id: {author_id!r}"
+                )
             record = CommentRecord(
                 id=self._new_id("cmt", self.comments),
                 card_id=card_id,

@@ -9,14 +9,18 @@ from __future__ import annotations
 
 from ..config import Settings
 from .memory import InMemoryRepository
+from .postgres import PostgresRepository
 from .sql_server import SqlServerRepository
 
-Repository = InMemoryRepository | SqlServerRepository
+Repository = InMemoryRepository | SqlServerRepository | PostgresRepository
 
 
 def build_repository(settings: Settings) -> Repository:
-    if not settings.db_user:
-        return InMemoryRepository()
-    store = SqlServerRepository(settings)
-    store.ensure_schema()
-    return store
+    # PostgreSQL wins when configured; then SQL Server; then in-memory.
+    if settings.database_url:
+        return PostgresRepository(settings)
+    if settings.db_user:
+        store = SqlServerRepository(settings)
+        store.ensure_schema()
+        return store
+    return InMemoryRepository()
