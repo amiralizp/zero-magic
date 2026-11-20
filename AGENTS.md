@@ -11,11 +11,13 @@ validate, agents build. Week 3 adds PRD-to-cards breakdown with a model that is
 validated, retried, rate-limited and scored. A build-free console at `/console`
 exercises the same HTTP API.
 
-Not present yet: Docker, authentication and the week-4 frontend. PostgreSQL is the durable
-store when `DATABASE_URL` is set and the in-memory repository otherwise; both live
-behind one interface (`app/repositories/factory.py` picks). The console in `app/web/` is a
-convenience page, not that frontend; do not add a bundler or a new dependency
-for it.
+Not present yet: Docker and the week-4 frontend. Authentication is signed-token
+based (S12): every API route except health needs a bearer token, and the console
+and chat pages share one token. PostgreSQL is the durable store when
+`DATABASE_URL` is set and the in-memory repository otherwise; both live behind
+one interface (`app/repositories/factory.py` picks). The console in `app/web/`
+is a convenience page, not that frontend; do not add a bundler or a new
+dependency for it.
 
 ## Commands
 
@@ -38,6 +40,14 @@ Database migrations (user-run, need `DATABASE_URL` in the environment):
 & .venv\Scripts\python.exe -m alembic current
 ```
 Run these yourself, not through an agent.
+
+Initial users (user-run; needs `DATABASE_URL`, `JWT_SECRET`,
+`GANTRY_HUMAN_PASSWORD` and `GANTRY_AGENT_PASSWORD` in the environment):
+```powershell
+& .venv\Scripts\python.exe scripts\setup_auth.py
+```
+Run this yourself too; it prints usernames only, never passwords or hashes.
+Never add a real password to code; fixture-only fake values are allowed in tests.
 
 There is no Makefile. `python -m` is preferred for modules; `uvicorn app.main:app`
 is the supported server entry point. Never run `python app/main.py` (see
@@ -70,6 +80,9 @@ BUG-001 in `docs/test-plan.md`).
 9. **CORS stays a single origin.** No `allow_origins=["*"]`.
 10. **The mocks are not models.** Any doc or comment that reports their scores
     must say so.
+11. **Identity is a signed token.** `X-Actor-Id` is ignored; no token or password
+    is hardcoded. Only `app/services/auth.py` imports `jwt`/`argon2`, and no
+    password, hash or `JWT_SECRET` may be logged or returned.
 
 ## Architecture map
 
@@ -83,9 +96,11 @@ BUG-001 in `docs/test-plan.md`).
 | Repository selection from settings | `app/repositories/factory.py` |
 | Seeded actors | `app/actors.py` |
 | Record -> public model | `app/presenters.py` |
-| Actor identity and dependencies | `app/api/deps.py` |
+| Token identity and dependencies | `app/api/deps.py` |
+| Login endpoints and contracts | `app/api/auth.py`, `app/schemas/auth.py` |
 | Routes | `app/api/*.py` |
 | Rules | `app/services/cards.py` |
+| Hashing and signed tokens | `app/services/auth.py` |
 | Breakdown orchestration | `app/services/breakdown.py` |
 | Prompts | `app/ai/prompts.py` |
 | Providers | `app/ai/providers/` |
@@ -95,7 +110,7 @@ BUG-001 in `docs/test-plan.md`).
 | Contracts | `app/schemas/` |
 | Evals | `evals/` |
 | Interactive console (HTML/CSS/JS) | `app/web/` |
-| Demos | `scripts/` |
+| Demos and auth bootstrap | `scripts/` |
 | Specs | `specs/` |
 | Decisions | `docs/adr/` |
 
@@ -112,6 +127,8 @@ read the store or build HTTP responses.
 - Never call a real model in the suite. Use the mocks or a local failing/slow
   provider.
 - Assert status codes and `error.code`, not message prose.
+- Use fixture-only secrets and fake passwords; never read `.env` or touch a real
+  database in tests.
 - Keep the eval gate green. A prompt change that lowers validity is a
   regression, even if the average score rises.
 - Run the full suite before finishing: `python -m pytest`.
@@ -124,7 +141,7 @@ read the store or build HTTP responses.
 - Small functions, docstrings that explain *why*, comments only where the code
   cannot say it.
 - No new runtime dependency without a reason and a note. The current list is
-  FastAPI, Uvicorn, Pydantic, httpx, pytest.
+  FastAPI, Uvicorn, Pydantic, httpx, pytest, argon2-cffi and PyJWT.
 - Names follow the domain: card, stage, transition, assignee, PRD, breakdown,
   draft.
 - Keep docs and code in the same change when a rule or a command changes.
@@ -139,6 +156,7 @@ read the store or build HTTP responses.
 | Limit or setting | `README.md`, `.env.example`, `docs/architecture.md` |
 | New decision with trade-offs | a new ADR in `docs/adr/` |
 | Console page or asset | `README.md`, `tests/test_console.py` |
+| Auth endpoint or token setting | `README.md`, `.env.example`, `docs/architecture.md`, ADR 0009 |
 
 ## Architecture rules (target for week 4; see docs/architecture.md section 3.1)
 
@@ -157,6 +175,8 @@ this everywhere; docs/critique.md lists the violations. New code must follow it.
 - AppError lives in a module without a web framework import.
 - Authentication (who are you) is HTTP; authorization (what may you do) is
   checked in services on every call.
+- The bearer token is the only identity input; `X-Actor-Id` and chat-body
+  `actor` claims are ignored. Crypto imports live only in `app/services/auth.py`.
 
 Never edit or weaken a test to make it pass. If a test and a rule disagree, stop
 and ask. Do not read, print or edit .env; never commit .env.

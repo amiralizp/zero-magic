@@ -171,7 +171,7 @@
 
 ## بخش: امنیت
 
-- [ ] **S12 — Authentication: «تو کی هستی؟»**  (branch: `step/S12-<slug>`)
+- [x] **S12 — Authentication: «تو کی هستی؟»**  (branch: `step/S12-<slug>`)
   - **Goal:** به‌جای باور کردن هدر قابل جعل `X-Actor-Id`، هویت از رمز و توکن بیاید. (OWASP A01 و A07)
   - **Tasks:**
     - رمز با الگوریتم امن هش شود (argon2 یا bcrypt)، هرگز متن ساده.

@@ -282,7 +282,7 @@ Run before a release or demo:
 | No browser tests | There is no frontend yet | Playwright in week 4 |
 | No mutation testing | Coverage can be green with weak assertions | Optional `mutmut` run on `services/cards.py` |
 | No fuzzing | Random payloads may find envelope gaps | Hypothesis on create/transition schemas |
-| No auth tests | Identity is a trusted header | Full auth suite in week 6 |
+| No refresh/revocation tests | Tokens expire but cannot be renewed or revoked yet | Add them when the refresh story lands |
 
 ## 9. Proposed CI
 
