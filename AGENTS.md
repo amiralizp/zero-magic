@@ -84,6 +84,24 @@ BUG-001 in `docs/test-plan.md`).
     is hardcoded. Only `app/services/auth.py` imports `jwt`/`argon2`, and no
     password, hash or `JWT_SECRET` may be logged or returned.
 
+## Security checklist (OWASP API Top 10, 2025)
+
+| ID | Risk | Gantry position |
+| --- | --- | --- |
+| A01 | Broken Access Control | Roles checked in services; agents never reach `done`; default deny |
+| A02 | Security Misconfiguration | Single CORS origin, no debug flag, `.env` gitignored |
+| A03 | Software Supply Chain Failures | Versions pinned in `requirements.txt`; only needed packages |
+| A04 | Cryptographic Failures | Argon2id passwords; `JWT_SECRET` only in `.env` |
+| A05 | Injection | Parameterised queries only; `app/ai/safety.py` scans model prompts |
+| A06 | Insecure Design | The builder cannot validate its own card; no design-level bypass |
+| A07 | Authentication Failures | Hashed login, expiring tokens, per-username login rate limit |
+| A08 | Software or Data Integrity Failures | Alembic migrations only; no backup endpoint |
+| A09 | Security Logging and Alerting Failures | `audit_log` for transitions and `auth.login_failed` |
+| A10 | Mishandling of Exceptional Conditions | Uniform error envelope; `details` has no file paths or SQL |
+
+The read-only `security-reviewer` subagent in `.opencode/agents/` re-checks a
+diff against this list. See `docs/architecture.md` section 12.
+
 ## Architecture map
 
 | Concern | File |

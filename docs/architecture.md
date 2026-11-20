@@ -408,20 +408,39 @@ global patching is needed.
 The two `GANTRY_*_PASSWORD` variables are read by the user-run bootstrap script,
 not by the app; no credential is compiled into the server.
 
-## 12. Security checklist (OWASP API Top 10, 2023)
+## 12. Security checklist (OWASP API Top 10, 2025)
 
-| Risk | Current position | Gap / next step |
-| --- | --- | --- |
-| API1 Broken object level authorisation | No cross-tenant objects exist yet; ids are unguessable random hex | Week 6: workspace membership check on every read/write |
-| API2 Broken authentication | Argon2id-hashed passwords, short-lived HS256 tokens with issuer/expiry checks; legacy header ignored | Add refresh, revocation and brute-force limits |
-| API3 Broken object property authorisation | `CardRead` whitelists fields; `built_by` and history never serialised; `extra="forbid"` blocks mass assignment | Add response tests per new field |
-| API4 Unrestricted resource consumption | Per-actor rate limit, 20k PRD cap, 10-card cap, 15 s deadline, 2k comment cap, paging cap | Week 7: Redis limiter shared across workers |
-| API5 Broken function level authorisation | `require_human`, agent-only edges, agent assignment rule | Add role matrix tests when roles multiply |
-| API6 Unrestricted business flows | Closed state machine, no skip edges, self-validation block, one assignee | Add per-actor transition rate limit if abuse appears |
-| API7 SSRF | No user-supplied URLs; the only outbound host is `OPENROUTER_BASE_URL` | Never let a request override the base URL |
-| API8 Security misconfiguration | Single CORS origin, no `*`, unexpected errors return a generic body, no debug flag, no secrets in logs | Add security headers at the proxy |
-| API9 Improper inventory management | OpenAPI at `/docs` and `/openapi.json`; `/api/v1/meta` lists stages, edges, models and limits | Version the API before week 4 frontend work |
-| API10 Unsafe consumption of third-party APIs | Model output is schema-validated and graph-checked; injection is scanned; prompts treat PRD text as data | Add output moderation and per-model budgets |
+| ID | Risk | Gantry position | Gap / next step |
+| --- | --- | --- | --- |
+| A01 | Broken Access Control | Roles are checked in services on every call; agents never reach `done`; default deny | None |
+| A02 | Security Misconfiguration | Single CORS origin, no debug flag, `.env` gitignored | Add security headers at the proxy |
+| A03 | Software Supply Chain Failures | Versions pinned in `requirements.txt`; only the packages the app needs | None |
+| A04 | Cryptographic Failures | Argon2id-hashed passwords; `JWT_SECRET` only in `.env` | The `.env.example` placeholder is documented and accepted (low) |
+| A05 | Injection | Parameterised queries only; `app/ai/safety.py` scans model prompts | None |
+| A06 | Insecure Design | The builder cannot validate its own card; no design-level bypass | None |
+| A07 | Authentication Failures | Hashed login, expiring tokens, per-username login rate limit | Week 7: Redis limiter shared across workers |
+| A08 | Software or Data Integrity Failures | Alembic migrations only; no backup endpoint | Verify a backup before restore |
+| A09 | Security Logging and Alerting Failures | `audit_log` records transitions and `auth.login_failed` | None |
+| A10 | Mishandling of Exceptional Conditions | Uniform error envelope; `details` carries no file paths or SQL | None |
+
+### S15 audit findings
+
+The S15 audit (`step/S15-owasp-audit`) closed the two real gaps and recorded the
+rest:
+
+| Finding | OWASP | Decision | Where |
+| --- | --- | --- | --- |
+| Login had no rate limit | A07 | Fixed | `app/api/auth.py`, `app/api/deps.py`, `app/main.py`, `app/config.py` |
+| Failed logins were not audited | A09 | Fixed | `app/services/auth.py` |
+| Placeholder `JWT_SECRET` in `.env.example` | A04 | Accepted (low) | `.env.example` |
+| Old `prd_id` finding in `docs/ROADMAP.md` | A06/A10 | Closed as obsolete | `CardCreate` has no `prd_id`; breakdown validates with `get_prd_or_404` |
+
+The review is reproducible with the read-only subagent in
+`.opencode/agents/security-reviewer.md`:
+
+```text
+Use the security-reviewer subagent to review the diff of this branch against the OWASP checklist. List findings with file:line. Fix the ones I approve.
+```
 
 Additional hygiene:
 
@@ -431,15 +450,16 @@ Additional hygiene:
 - `Settings` is frozen; there is no runtime path that changes limits.
 - The mock providers are the default, so a missing key degrades to a documented
   offline mode instead of a crash at request time.
-- Every mutation writes an audit entry with the actor id and timestamp.
+- Every mutation writes an audit entry with the actor id and timestamp, and a
+  failed login writes `auth.login_failed`.
 
 ## 13. Observability
 
 - **Request id** on every response, echoed from the client when supplied, so a
   browser error can be matched to a server log line.
 - **Audit log** in the store: `card.created`, `card.updated`, `card.transitioned`,
-  `card.assigned`, `card.deleted`, `comment.created`, `prd.created`, each with
-  actor, subject, timestamp and relevant extras.
+  `card.assigned`, `card.deleted`, `comment.created`, `prd.created` and
+  `auth.login_failed`, each with actor, subject, timestamp and relevant extras.
 - **Breakdown warnings** carry per-attempt failures, injection labels, fallback
   and attempt counts to the caller.
 - Unexpected exceptions are logged with `logger.exception`, and the client only

@@ -167,7 +167,7 @@
   - **Done when:** کارت بعد از ری‌استارت هنوز هست و هیچ اشاره‌ای به SQL Server در کد نمانده.
   - **Commit:** `feat(db): postgres repository replaces sql server`
 
-  - [ ] S15 finding: prd_id is not validated in services (POST /cards with an unknown prd_id); decide in S15 (OWASP A06/A10)
+  - [x] S15 finding: prd_id is not validated in services (POST /cards with an unknown prd_id) — بسته شد در S15: `CardCreate` فیلد `prd_id` ندارد و breakdown در service با `get_prd_or_404` اعتبارسنجی می‌کند.
 
 ## بخش: امنیت
 
@@ -206,7 +206,7 @@
   - **Done when:** همه تست‌های 401/403 سبز است. (برای هر کدام یک تست نوشته‌ای.)
   - **Commit:** `test(security): add 401 and 403 tests`
 
-- [ ] **S15 — ممیزی OWASP Top 10**  (branch: `step/S15-<slug>`)
+- [x] **S15 — ممیزی OWASP Top 10**  (branch: `step/S15-<slug>`)
   - **Goal:** ضعف‌های رایج را در کد خودت پیدا و ببندی. در دفاع یکی از ۱۰ مورد را تصادفی می‌پرسند.
   - **Tasks:**
     - چک‌لیست ده‌گانه (صفحه «OWASP») را در `docs/architecture.md`، `AGENTS.md` و `CLAUDE.md` بگذار.
