@@ -18,7 +18,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .ai.providers.base import BreakdownProvider
 from .ai.registry import ProviderRegistry, build_providers
-from .api import assignment, cards, comments, meta, prds, chat
+from .api import assignment, auth, cards, comments, meta, prds, chat
 from .config import Settings
 from .repositories.factory import Repository, build_repository
 from .errors import install_error_handlers
@@ -67,7 +67,7 @@ def create_app(
         allow_origins=[settings.frontend_origin],
         allow_credentials=True,
         allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
-        allow_headers=["Accept", "Content-Type", "X-Actor-Id", "X-Request-Id"],
+        allow_headers=["Accept", "Authorization", "Content-Type", "X-Request-Id"],
         expose_headers=["Retry-After", "X-Request-Id"],
     )
 
@@ -85,11 +85,12 @@ def create_app(
 
         response = await call_next(request)
         path = request.url.path
-        if path == "/console" or path.startswith("/console/assets/"):
+        if path in {"/console", "/chat"} or path.startswith("/console/assets/") or path.startswith("/chat/assets/"):
             response.headers["Cache-Control"] = "no-store"
         return response
 
     app.include_router(meta.router)
+    app.include_router(auth.router)
     app.include_router(cards.router)
     app.include_router(comments.router)
     app.include_router(assignment.router)

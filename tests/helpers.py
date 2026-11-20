@@ -5,16 +5,26 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from app.actors import SEED_ACTORS
 from app.config import Settings
 from app.main import create_app
+from app.schemas.actors import Actor
+from app.services.auth import bootstrap_users, issue_token
 
 HUMAN = "human:ada"
 HUMAN2 = "human:grace"
 HUMAN3 = "human:linus"
 AGENT = "agent:builder"
 REVIEWER = "agent:reviewer"
+
+# Fixture-only values. They are not real credentials and never reach .env.
+TEST_JWT_SECRET = "test-only-jwt-secret-with-at-least-32-chars"
+TEST_HUMAN_PASSWORD = "test-human-password-not-a-secret"
+TEST_AGENT_PASSWORD = "test-agent-password-not-a-secret"
+TEST_TOKEN_TTL_SECONDS = 3600
 
 SAMPLE_PRD = """# Card comments
 
@@ -27,21 +37,101 @@ Users need a way to discuss a card without leaving the board.
 """
 
 
+def actor_for(actor_id: str) -> Actor:
+    for actor in SEED_ACTORS:
+        if actor.id == actor_id:
+            return actor
+    raise KeyError(f"unknown seeded actor: {actor_id!r}")
+
+
+def token_for(actor: str = HUMAN) -> str:
+    """Mint a real signed token for a seeded actor, using the test secret."""
+
+    identity = actor_for(actor)
+    return issue_token(
+        actor_id=identity.id,
+        username=identity.id.split(":", 1)[1],
+        role=identity.role,
+        secret=TEST_JWT_SECRET,
+        ttl_seconds=TEST_TOKEN_TTL_SECONDS,
+    )
+
+
 def headers(actor: str = HUMAN) -> dict[str, str]:
-    return {"X-Actor-Id": actor}
+    return {"Authorization": f"Bearer {token_for(actor)}"}
+
+
+class AuthenticatedTestClient(TestClient):
+    """A TestClient that always sends a valid token and ignores X-Actor-Id.
+
+    Tests that need to probe missing or invalid tokens use ``make_client(auth=False)``
+    or ``raw_client(app)`` so the missing header is not silently repaired.
+    """
+
+    def __init__(self, app: FastAPI, *, actor: str = HUMAN, **kwargs: Any) -> None:
+        super().__init__(app, **kwargs)
+        self.default_actor = actor
+
+    def request(self, method: str, url: Any, *, headers: Any = None, **kwargs: Any):
+        merged = {
+            str(key): str(value)
+            for key, value in dict(headers or {}).items()
+            if str(key).lower() != "x-actor-id"
+        }
+        if not any(key.lower() == "authorization" for key in merged):
+            merged["Authorization"] = f"Bearer {token_for(self.default_actor)}"
+        return super().request(method, url, headers=merged, **kwargs)
+
+
+def raw_client(app: FastAPI) -> TestClient:
+    """A plain client for identity-negative tests; no header is injected."""
+
+    return TestClient(app)
+
+
+def seed_test_users(store: Any) -> None:
+    bootstrap_users(
+        store,
+        human_password=TEST_HUMAN_PASSWORD,
+        agent_password=TEST_AGENT_PASSWORD,
+    )
+
+
+def build_test_app(
+    *,
+    providers: Mapping[str, Any] | None = None,
+    **settings_overrides: Any,
+) -> FastAPI:
+    """Build an isolated app with token settings and the two fixture users."""
+
+    options: dict[str, Any] = {
+        "jwt_secret": TEST_JWT_SECRET,
+        "token_ttl_seconds": TEST_TOKEN_TTL_SECONDS,
+    }
+    options.update(settings_overrides)
+    settings = Settings(**options)
+    app = create_app(settings=settings, provider_overrides=providers)
+    seed_test_users(app.state.store)
+    return app
 
 
 def make_client(
     *,
+    auth: bool = True,
+    actor: str = HUMAN,
     providers: Mapping[str, Any] | None = None,
     **settings_overrides: Any,
 ) -> TestClient:
-    """Build an app with tighter limits or a failing provider for one test."""
+    """Build an app with tighter limits or a failing provider for one test.
 
-    settings = Settings(**settings_overrides)
-    return TestClient(
-        create_app(settings=settings, provider_overrides=providers)
-    )
+    ``auth=False`` returns a raw client so a test can assert 401 for a missing
+    or invalid token without the wrapper adding one.
+    """
+
+    app = build_test_app(providers=providers, **settings_overrides)
+    if auth:
+        return AuthenticatedTestClient(app, actor=actor)
+    return TestClient(app)
 
 
 def card_payload(**overrides: Any) -> dict[str, Any]:

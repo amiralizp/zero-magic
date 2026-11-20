@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from tests.helpers import HUMAN, card_payload, create_card, headers
+from tests.helpers import HUMAN, card_payload, create_card, headers, raw_client
 
 
 def assert_error_envelope(response, *, code: str) -> None:
@@ -80,13 +80,13 @@ def test_cors_preflight_allows_the_configured_origin(client):
         headers={
             "Origin": "http://localhost:5173",
             "Access-Control-Request-Method": "POST",
-            "Access-Control-Request-Headers": "X-Actor-Id, Content-Type",
+            "Access-Control-Request-Headers": "Authorization, Content-Type",
         },
     )
     assert response.status_code == 200
     assert response.headers["access-control-allow-origin"] == "http://localhost:5173"
     allowed = response.headers["access-control-allow-headers"].casefold()
-    assert "x-actor-id" in allowed
+    assert "authorization" in allowed
 
 
 def test_cors_does_not_allow_arbitrary_origins(client):
@@ -119,6 +119,8 @@ def test_openapi_lists_every_endpoint_and_the_error_envelope(client):
         ("/api/v1/prds", "post"),
         ("/api/v1/prds/{prd_id}", "get"),
         ("/api/v1/prds/{prd_id}/breakdown", "post"),
+        ("/api/v1/auth/login", "post"),
+        ("/api/v1/auth/me", "get"),
     }
     for path, method in expected:
         assert path in paths, path
@@ -170,13 +172,14 @@ def test_actor_directory_seeds_humans_and_agents(client):
 
 
 @pytest.mark.parametrize("header", ["X-Actor-Id", "x-actor-id", "X-ACTOR-ID"])
-def test_actor_header_is_case_insensitive(client, header):
-    response = client.post(
+def test_legacy_actor_header_is_ignored(client, header):
+    response = raw_client(client.app).post(
         "/api/v1/cards",
         headers={header: HUMAN},
         json=card_payload(),
     )
-    assert response.status_code == 201
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "missing_token"
 
 
 def test_health_is_public_and_reports_the_version(client):

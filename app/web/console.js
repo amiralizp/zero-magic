@@ -3,7 +3,9 @@
 const STAGE_FALLBACK = ['spec', 'ready', 'building', 'checks', 'validation', 'done'];
 
 const state = {
-  actorId: localStorage.getItem('zm.actor') || 'human:ada',
+  token: localStorage.getItem('zm.token') || '',
+  identity: null,
+  actorId: null,
   actors: [],
   meta: null,
   cards: [],
@@ -85,10 +87,15 @@ function errorText(error) {
 
 /* HTTP --------------------------------------------------------------------- */
 
+function authHeaders(extra = {}) {
+  const headers = { ...extra };
+  if (state.token) headers['Authorization'] = `Bearer ${state.token}`;
+  return headers;
+}
+
 async function api(path, { method = 'GET', body } = {}) {
-  const headers = { Accept: 'application/json' };
+  const headers = authHeaders({ Accept: 'application/json' });
   if (body !== undefined) headers['Content-Type'] = 'application/json';
-  if (state.actorId) headers['X-Actor-Id'] = state.actorId;
 
   let response;
   try {
@@ -114,6 +121,10 @@ async function api(path, { method = 'GET', body } = {}) {
     error.code = envelope.code || `http_${response.status}`;
     error.status = response.status;
     error.details = envelope.details;
+    if (response.status === 401 && ['missing_token', 'invalid_token'].includes(error.code)) {
+      clearSession();
+      showLogin('Your session expired. Sign in again.');
+    }
     throw error;
   }
   return payload;
@@ -153,46 +164,112 @@ async function checkHealth() {
   }
 }
 
-/* Actors ------------------------------------------------------------------- */
+/* Authentication ----------------------------------------------------------- */
 
-function fillActorSelect() {
-  const select = $('#actor-select');
-  const groups = { human: 'Humans', agent: 'Agents' };
-  select.innerHTML = ['human', 'agent'].map((role) => {
-    const actors = state.actors.filter((actor) => actor.role === role);
-    if (!actors.length) return '';
-    const options = actors.map((actor) => (
-      `<option value="${esc(actor.id)}">${esc(actor.display_name)} · ${esc(actor.id)}</option>`
-    )).join('');
-    return `<optgroup label="${groups[role]}">${options}</optgroup>`;
-  }).join('');
-  select.value = state.actorId;
+function showLogin(message = '') {
+  const form = $('#login-form');
+  const error = $('#login-error');
+  if (form) form.hidden = false;
+  if (error) {
+    error.textContent = message;
+    error.hidden = !message;
+  }
+  const identity = $('#auth-identity');
+  if (identity) identity.hidden = true;
 }
 
-function setActor(id, { notify = false } = {}) {
-  const actor = actorById(id);
-  if (!actor) return;
-  state.actorId = actor.id;
-  localStorage.setItem('zm.actor', actor.id);
-  $('#actor-select').value = actor.id;
+function clearSession() {
+  state.token = '';
+  state.identity = null;
+  state.actorId = null;
+  state.actors = [];
+  state.meta = null;
+  state.cards = [];
+  state.prds = [];
+  localStorage.removeItem('zm.token');
+}
+
+function setIdentity(me) {
+  state.identity = me;
+  state.actorId = me.actor_id;
+  const form = $('#login-form');
+  const identity = $('#auth-identity');
+  if (form) form.hidden = true;
+  if (identity) identity.hidden = false;
+  const error = $('#login-error');
+  if (error) error.hidden = true;
+
   const avatar = $('#actor-avatar');
-  avatar.textContent = initials(actor.display_name);
-  avatar.className = `avatar avatar--${actor.role}`;
+  if (avatar) {
+    avatar.textContent = initials(me.display_name);
+    avatar.className = `avatar avatar--${me.role}`;
+  }
+  const name = $('#auth-name');
+  if (name) name.textContent = `${me.display_name} · ${me.username}`;
   const badge = $('#actor-role');
-  badge.textContent = actor.role;
-  badge.dataset.role = actor.role;
+  if (badge) {
+    badge.textContent = me.role;
+    badge.dataset.role = me.role;
+  }
   const foot = document.getElementById('gantryChatFoot');
-  if (foot) foot.textContent = `Gantry AI · acting as ${actor.display_name}`;
-  if (notify) {
+  if (foot) foot.textContent = `Gantry AI · signed in as ${me.display_name}`;
+  renderRules();
+}
+
+async function loadSession() {
+  if (!state.token) {
+    showLogin();
+    return false;
+  }
+  const me = await api('/api/v1/auth/me');
+  setIdentity(me);
+  return true;
+}
+
+async function login(event) {
+  event.preventDefault();
+  const username = ($('#login-username')?.value || '').trim();
+  const password = $('#login-password')?.value || '';
+  const button = $('#login-button');
+  if (button) button.disabled = true;
+  try {
+    const response = await fetch('/api/v1/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload?.error?.message || `Sign in failed (HTTP ${response.status}).`);
+    }
+    state.token = payload.access_token;
+    localStorage.setItem('zm.token', state.token);
+    const field = $('#login-password');
+    if (field) field.value = '';
+    await loadSession();
+    if (state.identity) await refresh({ quiet: true });
     toast(
       'success',
-      `Acting as ${actor.display_name}`,
-      actor.role === 'agent'
-        ? 'Agents may claim work, build and comment, but cannot approve, validate or assign.'
+      `Signed in as ${state.identity?.display_name || username}`,
+      state.identity?.role === 'agent'
+        ? 'Agents may claim work, build and comment.'
         : 'Humans approve specs, accept checks, assign and validate work.',
     );
+  } catch (error) {
+    showLogin(errorText(error));
+  } finally {
+    if (button) button.disabled = false;
   }
-  renderRules();
+}
+
+function logout() {
+  clearSession();
+  showLogin();
+  const board = $('#board');
+  const list = $('#prd-list');
+  if (board) board.innerHTML = '<p class="empty-note">Sign in to load the board.</p>';
+  if (list) list.innerHTML = '<p class="empty-note">Sign in to load PRDs.</p>';
+  toast('success', 'Signed out', 'The token was removed from this browser.');
 }
 
 /* Board -------------------------------------------------------------------- */
@@ -815,7 +892,8 @@ function wire() {
   });
 
   $('#new-card').addEventListener('click', openCardDialog);
-  $('#actor-select').addEventListener('change', (event) => setActor(event.target.value, { notify: true }));
+  $('#login-form').addEventListener('submit', login);
+  $('#logout-button').addEventListener('click', logout);
 
   $('#card-form').addEventListener('submit', createCard);
   $$('[data-close-dialog]').forEach((button) => {
@@ -949,7 +1027,7 @@ async function gantryChatLoadModels() {
   const select = document.getElementById('gantryChatModel');
   if (!select) return;
   try {
-    const res = await fetch('/api/v1/chat/models');
+    const res = await fetch('/api/v1/chat/models', { headers: authHeaders() });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       const message = data?.error?.message || 'The chat model is not configured.';
@@ -1049,15 +1127,13 @@ async function gantryChatSend() {
   gantryChatAddTyping();
 
   try {
-    const headers = { 'Content-Type': 'application/json' };
-    if (state.actorId) headers['X-Actor-Id'] = state.actorId;
+    const headers = authHeaders({ 'Content-Type': 'application/json' });
     const res = await fetch('/api/v1/chat/completions', {
       method: 'POST',
       headers,
       body: JSON.stringify({
         messages: gantryChat.messages,
         model: gantryChat.model || undefined,
-        actor: state.actorId || undefined,
         temperature: 0.7,
         max_tokens: 2048,
       }),
@@ -1229,6 +1305,12 @@ async function boot() {
   await checkHealth();
 
   try {
+    if (!(await loadSession())) {
+      const board = $('#board');
+      if (board) board.innerHTML = '<p class="empty-note">Sign in to load the board.</p>';
+      return;
+    }
+
     const [actors, meta] = await Promise.all([
       api('/api/v1/actors'),
       api('/api/v1/meta'),
@@ -1236,14 +1318,12 @@ async function boot() {
     state.actors = actors.items;
     state.meta = meta;
 
-    if (!actorById(state.actorId)) state.actorId = state.actors[0]?.id || 'human:ada';
-    fillActorSelect();
-    setActor(state.actorId);
     fillModelSelect();
     await refresh({ quiet: true });
     renderRules();
     switchTab(tabFromHash(), { sync: false });
   } catch (error) {
+    if (!state.token) return; // loadSession already showed the sign-in form.
     toast('error', 'Could not load the console', errorText(error), error.code);
     $('#board').innerHTML = '<p class="empty-note">The API is not reachable. Start it with <code>uvicorn app.main:app</code>, then refresh.</p>';
   }

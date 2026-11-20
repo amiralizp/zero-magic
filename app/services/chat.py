@@ -1,18 +1,15 @@
 """Chat policy: preconditions and error mapping, framework-free.
 
-This module owns the chat-specific rules (missing key, actor fallback from the
-request body, upstream status -> hint mapping) so the router only handles HTTP
-and SSE framing. It imports nothing from FastAPI, Starlette or httpx (ADR 0007).
+This module owns the chat-specific rules (missing key and upstream status ->
+hint mapping) so the router only handles HTTP and SSE framing. Identity comes
+from a signed token, never from the request body. It imports nothing from
+FastAPI, Starlette or httpx (ADR 0007).
 """
 
 from __future__ import annotations
 
-from typing import Any
-
 from ..config import Settings
-from ..repositories.factory import Repository
 from ..domain_errors import AppError
-from ..schemas.actors import Actor
 
 
 def require_chat_key(settings: Settings) -> None:
@@ -23,26 +20,6 @@ def require_chat_key(settings: Settings) -> None:
             code="missing_chat_key",
             message=f"CHAT_API_KEY for {settings.chat_provider} is not configured.",
         )
-
-
-def resolve_actor(store: Repository, actor: Actor | None, claimed: Any) -> Actor | None:
-    """Resolve the acting actor, preferring the header over the body claim.
-
-    Returns ``None`` when neither is present. Raises ``unknown_actor`` when the
-    body claims an id that is not registered.
-    """
-    if actor is not None:
-        return actor
-    if not isinstance(claimed, str) or not claimed.strip():
-        return None
-    resolved = store.get_actor(claimed.strip())
-    if resolved is None:
-        raise AppError(
-            status_code=401,
-            code="unknown_actor",
-            message=f"Actor {claimed!r} is not registered.",
-        )
-    return resolved
 
 
 def key_hint(settings: Settings) -> str:

@@ -1,17 +1,24 @@
-"""FastAPI dependencies: settings, store, actor identity and limits."""
+"""FastAPI dependencies: settings, store, token identity, actors and limits.
+
+Authentication ("who are you?") happens here: a signed bearer token is turned
+into a token identity and then into a seeded actor. Authorization ("what may
+you do?") stays in the service layer. A legacy identity header is deliberately
+not read.
+"""
 
 from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import Depends, Header, Request
+from fastapi import Depends, Request
 
 from ..ai.registry import ProviderRegistry
 from ..config import Settings
-from ..repositories.factory import Repository
 from ..errors import AppError
 from ..rate_limit import SlidingWindowLimiter
+from ..repositories.factory import Repository
 from ..schemas.actors import Actor, ActorRole
+from ..services.auth import TokenIdentity, decode_token
 from ..services.breakdown import BreakdownService
 
 
@@ -31,32 +38,40 @@ def get_limiter(request: Request) -> SlidingWindowLimiter:
     return request.app.state.limiter
 
 
-def optional_actor(
-    store: Annotated[Repository, Depends(get_store)],
-    x_actor_id: Annotated[str | None, Header(alias="X-Actor-Id")] = None,
-) -> Actor | None:
-    if x_actor_id is None:
-        return None
-    actor = store.get_actor(x_actor_id)
-    if actor is None:
+def get_token_identity(request: Request) -> TokenIdentity:
+    """Verify the Authorization header and return the claimed identity."""
+
+    header = request.headers.get("Authorization")
+    if not header:
         raise AppError(
             401,
-            "unknown_actor",
-            f"Actor {x_actor_id!r} is not registered.",
-            headers={"WWW-Authenticate": "Actor"},
+            "missing_token",
+            "Send Authorization: Bearer <token>.",
+            headers={"WWW-Authenticate": "Bearer"},
         )
-    return actor
+    scheme, _, token = header.partition(" ")
+    if scheme.lower() != "bearer" or not token.strip():
+        raise AppError(
+            401,
+            "invalid_token",
+            "Authorization must use the Bearer scheme.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    settings = get_settings(request)
+    return decode_token(token.strip(), settings.jwt_secret)
 
 
 def require_actor(
-    actor: Annotated[Actor | None, Depends(optional_actor)],
+    identity: Annotated[TokenIdentity, Depends(get_token_identity)],
+    store: Annotated[Repository, Depends(get_store)],
 ) -> Actor:
+    actor = store.get_actor(identity.actor_id)
     if actor is None:
         raise AppError(
             401,
-            "missing_actor",
-            "Send X-Actor-Id with a registered human or agent id.",
-            headers={"WWW-Authenticate": "Actor"},
+            "invalid_token",
+            "The token names an unknown actor.",
+            headers={"WWW-Authenticate": "Bearer"},
         )
     return actor
 

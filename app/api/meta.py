@@ -9,12 +9,12 @@ from fastapi import APIRouter, Depends
 from ..ai.prompts import PROMPTS
 from ..ai.registry import ProviderRegistry
 from ..config import Settings
-from ..schemas.actors import ActorList
+from ..schemas.actors import Actor, ActorList
 from ..schemas.cards import STAGE_ORDER
 from ..services import cards as card_service
 from ..services.cards import ALLOWED_TRANSITIONS, HUMAN_ONLY_TRANSITIONS
 from ..repositories.factory import Repository
-from .deps import get_registry, get_settings, get_store
+from .deps import get_registry, get_settings, get_store, require_actor
 
 router = APIRouter(prefix="/api/v1", tags=["meta"])
 
@@ -35,6 +35,7 @@ async def health(
 @router.get("/actors", response_model=ActorList, summary="List seeded actors")
 async def actors(
     store: Annotated[Repository, Depends(get_store)],
+    actor: Annotated[Actor, Depends(require_actor)],
 ) -> ActorList:
     items = card_service.list_actors(store)
     return ActorList(items=items, total=len(items))
@@ -44,6 +45,7 @@ async def actors(
 async def meta(
     settings: Annotated[Settings, Depends(get_settings)],
     registry: Annotated[ProviderRegistry, Depends(get_registry)],
+    actor: Annotated[Actor, Depends(require_actor)],
 ) -> dict[str, object]:
     return {
         "stages": [stage.value for stage in STAGE_ORDER],

@@ -1,6 +1,7 @@
 let messages = [];
 let currentModel = '';
 let isGenerating = false;
+let authToken = localStorage.getItem('zm.token') || '';
 
 const chatContainer = document.getElementById('chatContainer');
 const messagesDiv = document.getElementById('messages');
@@ -10,12 +11,89 @@ const welcomeScreen = document.getElementById('welcomeScreen');
 const newChatBtn = document.getElementById('newChatBtn');
 const clearHistoryBtn = document.getElementById('clearHistoryBtn');
 const modelSelect = document.getElementById('modelSelect');
+const chatLoginForm = document.getElementById('chatLoginForm');
+const chatIdentity = document.getElementById('chatIdentity');
 
 marked.setOptions({ breaks: true, gfm: true });
 
+function authHeaders(extra = {}) {
+    const headers = { ...extra };
+    if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+    return headers;
+}
+
+function showLogin(message = '') {
+    if (chatLoginForm) chatLoginForm.hidden = false;
+    if (chatIdentity) chatIdentity.hidden = true;
+    const error = document.getElementById('chatAuthError');
+    if (error) {
+        error.textContent = message;
+        error.hidden = !message;
+    }
+    sendBtn.disabled = true;
+}
+
+function setIdentity(me) {
+    if (chatLoginForm) chatLoginForm.hidden = true;
+    if (chatIdentity) chatIdentity.hidden = false;
+    const error = document.getElementById('chatAuthError');
+    if (error) error.hidden = true;
+    const name = document.getElementById('chatIdentityName');
+    if (name) name.textContent = `${me.display_name} · ${me.role}`;
+    const footer = document.querySelector('.footer-text');
+    if (footer) footer.textContent = `Gantry AI · ${me.display_name}`;
+    sendBtn.disabled = userInput.value.trim() === '' || isGenerating || !authToken;
+}
+
+async function loadSession() {
+    if (!authToken) {
+        showLogin();
+        return false;
+    }
+    const res = await fetch('/api/v1/auth/me', { headers: authHeaders() });
+    if (!res.ok) {
+        authToken = '';
+        localStorage.removeItem('zm.token');
+        showLogin('نشست منقضی شد. دوباره وارد شوید.');
+        return false;
+    }
+    setIdentity(await res.json());
+    return true;
+}
+
+async function login(event) {
+    event.preventDefault();
+    const username = document.getElementById('chatUsername')?.value || '';
+    const password = document.getElementById('chatPassword')?.value || '';
+    try {
+        const res = await fetch('/api/v1/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password }),
+        });
+        const payload = await res.json().catch(() => ({}));
+        if (!res.ok) {
+            throw new Error(payload?.error?.message || 'ورود ناموفق بود.');
+        }
+        authToken = payload.access_token;
+        localStorage.setItem('zm.token', authToken);
+        const field = document.getElementById('chatPassword');
+        if (field) field.value = '';
+        if (await loadSession()) await loadModels();
+    } catch (e) {
+        showLogin(e.message);
+    }
+}
+
+function logout() {
+    authToken = '';
+    localStorage.removeItem('zm.token');
+    showLogin();
+}
+
 async function loadModels() {
     try {
-        const res = await fetch('/api/v1/chat/models');
+        const res = await fetch('/api/v1/chat/models', { headers: authHeaders() });
         const data = await res.json();
         modelSelect.innerHTML = '';
         (data.models || []).forEach((model) => {
@@ -179,6 +257,10 @@ function scrollToBottom() {
 async function sendMessage() {
     const content = userInput.value.trim();
     if (!content || isGenerating) return;
+    if (!authToken) {
+        showLogin('برای ارسال پیام ابتدا وارد شوید.');
+        return;
+    }
 
     welcomeScreen.style.display = 'none';
 
@@ -197,7 +279,7 @@ async function sendMessage() {
     try {
         const res = await fetch('/api/v1/chat/completions', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: authHeaders({ 'Content-Type': 'application/json' }),
             body: JSON.stringify({
                 messages: messages,
                 model: currentModel,
@@ -210,7 +292,12 @@ async function sendMessage() {
 
         if (!res.ok) {
             const err = await res.json().catch(() => ({}));
-            throw new Error(err.detail || 'خطا در ارتباط با سرور');
+            if (res.status === 401 && authToken) {
+                authToken = '';
+                localStorage.removeItem('zm.token');
+                showLogin('نشست منقضی شد. دوباره وارد شوید.');
+            }
+            throw new Error(err?.error?.message || err.detail || 'خطا در ارتباط با سرور');
         }
 
         const reader = res.body.getReader();
@@ -259,6 +346,14 @@ async function sendMessage() {
     scrollToBottom();
 }
 
-loadModels();
-loadHistory();
-userInput.focus();
+if (chatLoginForm) chatLoginForm.addEventListener('submit', login);
+document.getElementById('chatLogoutBtn')?.addEventListener('click', logout);
+
+async function boot() {
+    const signedIn = await loadSession();
+    if (signedIn) await loadModels();
+    loadHistory();
+    userInput.focus();
+}
+
+boot();

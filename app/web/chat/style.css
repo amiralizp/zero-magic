@@ -137,6 +137,41 @@ body {
 
 .btn-icon:hover { color: var(--text-primary); background: rgba(255, 255, 255, 0.045); border-color: var(--border-soft); }
 
+.chat-auth { display: flex; align-items: center; gap: 0.35rem; }
+.chat-login { display: flex; align-items: center; gap: 0.35rem; }
+
+.auth-input {
+    width: 82px;
+    padding: 0.4rem 0.5rem;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: #0f1622;
+    color: var(--text-primary);
+    font: inherit;
+    font-size: 0.75rem;
+    outline: none;
+}
+
+.auth-input:focus { border-color: rgba(103, 232, 249, 0.6); }
+.chat-login input[type="password"] { width: 96px; }
+
+.chat-identity { display: flex; align-items: center; gap: 0.25rem; }
+.chat-identity-name {
+    max-width: 120px;
+    overflow: hidden;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.chat-auth-error {
+    max-width: 170px;
+    color: #fda4af;
+    font-size: 0.7rem;
+    line-height: 1.2;
+}
+
 .chat-container {
     flex: 1;
     overflow-y: auto;

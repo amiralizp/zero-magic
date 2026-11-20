@@ -11,7 +11,7 @@ import httpx
 
 import app.api.chat as chat_api
 from app.ai.chat.errors import ChatUpstreamError
-from tests.helpers import make_client
+from tests.helpers import headers, make_client
 
 
 def _events(response):
@@ -102,7 +102,7 @@ def test_stream_fails_after_first_event(monkeypatch):
     client = make_client(chat_api_key="test-key")
     response = client.post(
         "/api/v1/chat/completions",
-        headers={"X-Actor-Id": "human:ada"},
+        headers=headers(),
         json={"messages": [{"role": "user", "content": "make a card"}]},
     )
     assert response.status_code == 200

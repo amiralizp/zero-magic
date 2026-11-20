@@ -33,14 +33,29 @@
           <span id="health-text">connecting…</span>
         </span>
 
-        <label class="actor-picker" for="actor-select">
-          <span id="actor-avatar" class="avatar" aria-hidden="true">A</span>
-          <span class="actor-field">
-            <span class="actor-label">Acting as</span>
-            <select id="actor-select" aria-label="Choose the actor identity"></select>
-          </span>
-          <span id="actor-role" class="role-badge"></span>
-        </label>
+        <div id="auth-box" class="auth-box">
+          <form id="login-form" class="login-form" autocomplete="off">
+            <label class="sr-only" for="login-username">Username</label>
+            <input id="login-username" class="input input--sm" name="username" value="ada"
+                   autocomplete="username" required maxlength="80" aria-label="Username">
+            <label class="sr-only" for="login-password">Password</label>
+            <input id="login-password" class="input input--sm" name="password" type="password"
+                   autocomplete="current-password" required maxlength="200"
+                   placeholder="Password" aria-label="Password">
+            <button id="login-button" class="btn btn--sm" type="submit">Sign in</button>
+          </form>
+          <div id="login-error" class="login-error" role="alert" hidden></div>
+
+          <div id="auth-identity" class="auth-identity" hidden>
+            <span id="actor-avatar" class="avatar" aria-hidden="true">A</span>
+            <span class="actor-field">
+              <span class="actor-label">Signed in as</span>
+              <span id="auth-name" class="auth-name"></span>
+            </span>
+            <span id="actor-role" class="role-badge"></span>
+            <button id="logout-button" class="btn btn--ghost btn--sm" type="button">Log out</button>
+          </div>
+        </div>
 
         <div class="topbar-actions">
           <button id="refresh" class="btn btn--ghost btn--icon" type="button" title="Reload cards and PRDs (R)" aria-label="Refresh">
@@ -206,8 +221,8 @@
 
           <div>
             <div class="section-head">
-              <h2>Seeded actors</h2>
-              <span class="section-note">Temporary identity</span>
+              <h2>Known actors</h2>
+              <span class="section-note">Roles from login</span>
             </div>
             <div id="actor-list" class="actor-list"></div>
 
@@ -222,9 +237,9 @@
                 <path d="M12 3 2.8 19a1 1 0 0 0 .9 1.5h16.6a1 1 0 0 0 .9-1.5L12 3Z"/><path d="M12 9v5"/><path d="M12 17.5h.01"/>
               </svg>
               <span>
-                <strong>Development identity.</strong>
-                <code>X-Actor-Id</code> is a stand-in for authentication (week 6).
-                Never expose this API publicly as-is.
+                <strong>Signed identity.</strong>
+                Every request sends <code>Authorization: Bearer &lt;token&gt;</code>.
+                The token, not a header or a body field, decides who you are.
               </span>
             </div>
           </div>

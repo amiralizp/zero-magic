@@ -9,6 +9,7 @@ from tests.helpers import (
     create_prd,
     headers,
     make_client,
+    raw_client,
 )
 
 
@@ -48,12 +49,12 @@ def test_only_humans_create_prds(client):
     assert response.json()["error"]["code"] == "human_only"
 
 
-def test_prd_create_requires_actor(client):
-    response = client.post(
-        "/api/v1/prds", json={"title": "No actor", "body": SAMPLE_PRD}
+def test_prd_create_requires_a_token(client):
+    response = raw_client(client.app).post(
+        "/api/v1/prds", json={"title": "No token", "body": SAMPLE_PRD}
     )
     assert response.status_code == 401
-    assert response.json()["error"]["code"] == "missing_actor"
+    assert response.json()["error"]["code"] == "missing_token"
 
 
 def test_prd_validation(client):

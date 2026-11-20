@@ -192,7 +192,7 @@ def test_chat_creates_a_spec_as_the_signed_in_human(monkeypatch):
     client = helpers.make_client(chat_api_key="test-key")
     response = client.post(
         "/api/v1/chat/completions",
-        headers={"X-Actor-Id": "human:ada"},
+        headers=helpers.headers(helpers.HUMAN),
         json={"messages": [{"role": "user", "content": "make a spec for ping"}]},
     )
     frames = _events(response)
@@ -206,32 +206,16 @@ def test_chat_creates_a_spec_as_the_signed_in_human(monkeypatch):
     assert any(card["title"] == "Add a ping" and card["stage"] == "spec" for card in cards)
 
 
-def test_chat_accepts_the_actor_in_the_body(monkeypatch):
-    async def fake_complete(self, messages, model=None, temperature=0.7, max_tokens=2048, tools=None):
-        assert "human:ada" in messages[0]["content"]
-        return {"role": "assistant", "content": "ok"}
-
-    monkeypatch.setattr(chat_api.ChatClient, "complete", fake_complete)
+def test_chat_rejects_an_actor_claim_in_the_body():
     client = helpers.make_client(chat_api_key="test-key")
-    response = client.post(
-        "/api/v1/chat/completions",
-        json={
-            "messages": [{"role": "user", "content": "hello"}],
-            "actor": "human:ada",
-        },
-    )
-    assert response.status_code == 200
-    assert "missing_actor" not in response.text
-
-
-def test_chat_rejects_an_unknown_actor_in_the_body():
-    client = helpers.make_client(chat_api_key="test-key")
-    response = client.post(
-        "/api/v1/chat/completions",
-        json={"messages": [{"role": "user", "content": "hi"}], "actor": "human:nobody"},
-    )
-    assert response.status_code == 401
-    assert response.json()["error"]["code"] == "unknown_actor"
+    for claimed in (helpers.HUMAN, "human:nobody"):
+        response = client.post(
+            "/api/v1/chat/completions",
+            json={"messages": [{"role": "user", "content": "hi"}], "actor": claimed},
+        )
+        assert response.status_code == 422
+        assert response.json()["error"]["code"] == "invalid_payload"
+        assert "unknown_actor" not in response.text
 
 
 def test_chat_creates_a_spec_even_when_the_model_only_asks_questions(monkeypatch):
@@ -242,7 +226,7 @@ def test_chat_creates_a_spec_even_when_the_model_only_asks_questions(monkeypatch
     client = helpers.make_client(chat_api_key="test-key")
     response = client.post(
         "/api/v1/chat/completions",
-        headers={"X-Actor-Id": "human:ada"},
+        headers=helpers.headers(helpers.HUMAN),
         json={"messages": [{"role": "user", "content": "برام یه کارت جدید بساز"}]},
     )
     frames = _events(response)
@@ -281,7 +265,7 @@ def test_chat_cannot_bypass_human_only(monkeypatch):
     client = helpers.make_client(chat_api_key="test-key")
     response = client.post(
         "/api/v1/chat/completions",
-        headers={"X-Actor-Id": "agent:builder"},
+        headers=helpers.headers(helpers.AGENT),
         json={"messages": [{"role": "user", "content": "create a spec"}]},
     )
     frames = _events(response)

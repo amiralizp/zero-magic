@@ -32,6 +32,7 @@ _ERRORS = {
 async def list_comments(
     card_id: str,
     store: Annotated[Repository, Depends(get_store)],
+    actor: Annotated[Actor, Depends(require_actor)],
 ) -> CommentList:
     records = card_service.list_comments(store, card_id)
     return CommentList(

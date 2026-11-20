@@ -214,7 +214,40 @@ p { margin: 0; }
 .health--down { color: #fecdd3; border-color: rgba(251, 113, 133, 0.28); }
 .health--down .dot { background: var(--danger); box-shadow: 0 0 0 3px rgba(251, 113, 133, 0.14); }
 
-.actor-picker {
+.auth-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+}
+
+.login-form {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: linear-gradient(180deg, #121924, #0d131c);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.input--sm {
+  width: 104px;
+  padding: 6px 8px;
+  font-size: 11.5px;
+}
+
+.login-form input[type="password"] { width: 116px; }
+
+.login-error {
+  max-width: 190px;
+  color: #fecdd3;
+  font-size: 10.5px;
+  line-height: 1.25;
+}
+
+.auth-identity {
   display: flex;
   align-items: center;
   gap: 9px;
@@ -223,7 +256,16 @@ p { margin: 0; }
   border-radius: 12px;
   background: linear-gradient(180deg, #121924, #0d131c);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
-  cursor: pointer;
+}
+
+.auth-name {
+  max-width: 150px;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .actor-field { display: flex; flex-direction: column; line-height: 1.15; }
@@ -236,27 +278,17 @@ p { margin: 0; }
   text-transform: uppercase;
 }
 
-.actor-picker select {
-  appearance: none;
-  max-width: 190px;
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
   border: 0;
-  background: transparent;
-  color: var(--text);
-  font: inherit;
-  font-size: 12.5px;
-  font-weight: 600;
-  padding: 1px 18px 1px 0;
-  cursor: pointer;
-  background-image:
-    linear-gradient(45deg, transparent 50%, #7c8ca3 50%),
-    linear-gradient(135deg, #7c8ca3 50%, transparent 50%);
-  background-position: calc(100% - 5px) 8px, calc(100% - 1px) 8px;
-  background-size: 4px 4px, 4px 4px;
-  background-repeat: no-repeat;
 }
-
-.actor-picker select:focus-visible { outline-offset: 3px; border-radius: 4px; }
-.actor-picker select option { background: var(--panel-2); color: var(--text); }
 
 .role-badge {
   padding: 3px 6px;
@@ -1209,7 +1241,7 @@ details[open] > .details-toggle::before { transform: rotate(90deg); }
 @media (max-width: 620px) {
   .health { display: none; }
   .brand-text small { display: none; }
-  .actor-picker select { max-width: 132px; }
+  .auth-name { max-width: 104px; }
   .role-badge { display: none; }
   .board { grid-auto-columns: minmax(248px, 86vw); }
   .drawer { width: 100vw; }
