@@ -24,6 +24,7 @@ DEFAULT_OPENROUTER_BASE = "https://openrouter.ai/api/v1"
 DEFAULT_CHAT_BASE = "https://api.deepseek.com"
 DEFAULT_CHAT_MODEL = "deepseek-flash"
 DEFAULT_CHAT_PROVIDER = "DeepSeek"
+DEFAULT_TOKEN_TTL_SECONDS = 3600
 
 
 def _int(name: str, default: int) -> int:
@@ -97,6 +98,10 @@ class Settings:
     # PostgreSQL is the durable store. Empty means the in-memory repository.
     database_url: str = field(default="", repr=False)
 
+    # Signed-token identity. The secret is never printed or returned.
+    jwt_secret: str = field(default="", repr=False)
+    token_ttl_seconds: int = DEFAULT_TOKEN_TTL_SECONDS
+
     primary_model: str = DEFAULT_PRIMARY_MODEL
     fallback_model: str = DEFAULT_FALLBACK_MODEL
 
@@ -126,6 +131,8 @@ class Settings:
             chat_provider=os.getenv("CHAT_PROVIDER", DEFAULT_CHAT_PROVIDER),
             chat_session=os.getenv("CHAT_SESSION", ""),
             database_url=os.getenv("DATABASE_URL", ""),
+            jwt_secret=os.getenv("JWT_SECRET", ""),
+            token_ttl_seconds=_int("TOKEN_TTL_SECONDS", DEFAULT_TOKEN_TTL_SECONDS),
             primary_model=os.getenv("MODEL_PRIMARY", DEFAULT_PRIMARY_MODEL),
             fallback_model=os.getenv("MODEL_FALLBACK", DEFAULT_FALLBACK_MODEL),
             openrouter_api_key=key,
