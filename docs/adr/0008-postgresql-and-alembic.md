@@ -1,6 +1,6 @@
 # ADR 0008: PostgreSQL with Alembic migrations replaces SQL Server
 
-**Status:** Accepted (implementation in S9-S11)
+**Status:** Accepted (implemented)
 **Date:** 2026-11-17
 **Deciders:** backend
 **Supersedes:** [0006](0006-sql-server-store.md)
@@ -26,8 +26,7 @@ migrations, and a real migration story is needed before any column changes.
 - SqlServerStore, python-tds and the startup schema guards are removed after the
   PostgreSQL repository passes the same repository tests.
 - The in-memory repository stays for fast tests.
-- Backups: pg_dump or no backup endpoint. This is decided in S11 and recorded
-  here.
+- Backups: the manual backup feature was removed in S11b; revisit with pg_dump after S15.
 
 ## Consequences
 

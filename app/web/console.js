@@ -761,23 +761,6 @@ function fillModelSelect() {
   select.value = defaults[0] || state.meta.models[0] || '';
 }
 
-/* Backups ------------------------------------------------------------------ */
-
-// Manual only, on purpose: nothing on a timer writes files to the disk.
-async function backupDatabase(button) {
-  if (button) button.disabled = true;
-  try {
-    const data = await api('/api/v1/backup', { method: 'POST' });
-    const name = String(data.file || '').split(/[\\/]/).pop();
-    const mb = ((data.bytes || 0) / (1024 * 1024)).toFixed(2);
-    toast('success', 'Backup written', `${name} (${mb} MB)`);
-  } catch (error) {
-    toast('error', 'Backup failed', errorText(error), error.code);
-  } finally {
-    if (button) button.disabled = false;
-  }
-}
-
 /* Data loading ------------------------------------------------------------- */
 
 async function refresh({ quiet = false } = {}) {
@@ -832,8 +815,6 @@ function wire() {
   });
 
   $('#new-card').addEventListener('click', openCardDialog);
-  const backupButton = $('#backup');
-  if (backupButton) backupButton.addEventListener('click', () => backupDatabase(backupButton));
   $('#actor-select').addEventListener('change', (event) => setActor(event.target.value, { notify: true }));
 
   $('#card-form').addEventListener('submit', createCard);

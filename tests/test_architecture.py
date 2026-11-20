@@ -39,9 +39,7 @@ def _layer(rel: str) -> str | None:
         return "service"
     if top == "ai":
         return "ai"
-    if top == "repositories" and len(parts) == 2 and parts[1] in {"memory.py", "sql_server.py", "factory.py"}:
-        return "repository"
-    if top == "backup.py" and len(parts) == 1:
+    if top == "repositories" and len(parts) == 2 and parts[1] in {"memory.py", "factory.py"}:
         return "repository"
     if top in {"main.py", "presenters.py"}:
         return "http"
@@ -148,11 +146,7 @@ def _violations_for_source(source: str, rel: str) -> list[str]:
                             f"{rel}:{lineno}: HTTP imports forbidden name(s) "
                             f"{bad} from app.repositories.factory"
                         )
-            elif (
-                _is(mod, "app.repositories.memory")
-                or _is(mod, "app.repositories.sql_server")
-                or _is(mod, "app.backup")
-            ):
+            elif _is(mod, "app.repositories.memory"):
                 found.append(f"{rel}:{lineno}: HTTP imports repository/store ({mod})")
             if any(_is(mod, d) for d in SQL_DRIVERS):
                 found.append(f"{rel}:{lineno}: HTTP imports SQL driver ({mod})")
@@ -163,7 +157,7 @@ def _violations_for_source(source: str, rel: str) -> list[str]:
                 found.append(f"{rel}:{lineno}: Service imports web framework ({mod})")
             if _is(mod, "app.api") or _is(mod, "app.presenters"):
                 found.append(f"{rel}:{lineno}: Service imports HTTP/presenters ({mod})")
-            if _is(mod, "app.repositories.sql_server") or _is(mod, "app.repositories.memory"):
+            if _is(mod, "app.repositories.memory"):
                 found.append(f"{rel}:{lineno}: Service imports concrete repository ({mod})")
             if any(_is(mod, d) for d in SQL_DRIVERS):
                 found.append(f"{rel}:{lineno}: Service imports SQL driver ({mod})")
@@ -173,12 +167,7 @@ def _violations_for_source(source: str, rel: str) -> list[str]:
             if _is(mod, "fastapi") or _is(mod, "starlette"):
                 found.append(f"{rel}:{lineno}: Repository imports web framework ({mod})")
         if layer == "ai":
-            if (
-                _is(mod, "app.repositories.memory")
-                or _is(mod, "app.repositories.sql_server")
-                or _is(mod, "app.repositories.factory")
-                or _is(mod, "app.backup")
-            ):
+            if _is(mod, "app.repositories.memory") or _is(mod, "app.repositories.factory"):
                 found.append(f"{rel}:{lineno}: AI imports repository/store ({mod})")
             if _is(mod, "app.services"):
                 found.append(f"{rel}:{lineno}: AI imports services ({mod})")
@@ -328,13 +317,13 @@ def test_services_do_not_import_store_modules():
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
             if isinstance(node, ast.ImportFrom):
-                if node.level == 0 and node.module in {"app.repositories.memory", "app.repositories.sql_server"}:
+                if node.level == 0 and node.module == "app.repositories.memory":
                     raise AssertionError(f"{rel}:{node.lineno}: imports from {node.module}")
-                if node.level > 0 and node.module in {"memory", "sql_server", "factory"}:
+                if node.level > 0 and node.module in {"memory", "factory"}:
                     raise AssertionError(f"{rel}:{node.lineno}: imports from .{node.module}")
             if isinstance(node, ast.Import):
                 for alias in node.names:
-                    if alias.name in {"app.repositories.memory", "app.repositories.sql_server"}:
+                    if alias.name == "app.repositories.memory":
                         raise AssertionError(f"{rel}:{node.lineno}: imports {alias.name}")
 
 
@@ -454,54 +443,39 @@ def test_services_do_not_import_presenters():
                     raise AssertionError(f"{rel}:{node.lineno}: imports from .presenters")
 
 
-def test_backup_service_is_framework_and_sql_free():
+def test_no_pytds_imports_and_deleted_modules_are_absent():
     import ast
-    from pathlib import Path
 
     root = Path(__file__).resolve().parent.parent
-    rel = "app/services/backup.py"
-    path = root / rel
-    tree = ast.parse(path.read_text(encoding="utf-8"))
-    forbidden_modules = {"fastapi", "starlette", "pytds", "httpx"}
-    forbidden_imports = {"app.api", "app.presenters"}
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            for alias in node.names:
-                top = alias.name.split(".")[0]
-                if top in forbidden_modules:
-                    raise AssertionError(f"{rel}:{node.lineno}: imports {alias.name}")
-                if alias.name in forbidden_imports or alias.name.startswith("app.api") or alias.name.startswith("app.presenters"):
-                    raise AssertionError(f"{rel}:{node.lineno}: imports {alias.name}")
-        if isinstance(node, ast.ImportFrom):
-            mod = node.module or ""
-            top = mod.split(".")[0]
-            if top in forbidden_modules:
-                raise AssertionError(f"{rel}:{node.lineno}: imports from {mod}")
-            if mod in forbidden_imports or mod.startswith("app.api") or mod.startswith("app.presenters"):
-                raise AssertionError(f"{rel}:{node.lineno}: imports from {mod}")
 
+    def _pytds_lines(source: str) -> list[int]:
+        lines: list[int] = []
+        tree = ast.parse(source)
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    if alias.name.split(".")[0] == "pytds":
+                        lines.append(node.lineno)
+            elif isinstance(node, ast.ImportFrom) and (node.module or "").split(".")[0] == "pytds":
+                lines.append(node.lineno)
+        return lines
 
-def test_ops_router_does_not_import_backup_or_pytds():
-    import ast
-    from pathlib import Path
+    # Positive control: the detector really flags both import forms.
+    assert _pytds_lines("import pytds\n")
+    assert _pytds_lines("from pytds import connect\n")
 
-    root = Path(__file__).resolve().parent.parent
-    rel = "app/api/ops.py"
-    path = root / rel
-    tree = ast.parse(path.read_text(encoding="utf-8"))
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            for alias in node.names:
-                if alias.name == "app.backup" or alias.name.startswith("app.backup"):
-                    raise AssertionError(f"{rel}:{node.lineno}: imports {alias.name}")
-                if alias.name == "pytds":
-                    raise AssertionError(f"{rel}:{node.lineno}: imports pytds")
-        if isinstance(node, ast.ImportFrom):
-            mod = node.module or ""
-            if mod == "app.backup" or mod.startswith("app.backup"):
-                raise AssertionError(f"{rel}:{node.lineno}: imports from {mod}")
-            if mod == "pytds":
-                raise AssertionError(f"{rel}:{node.lineno}: imports from pytds")
+    for path in sorted((root / "app").rglob("*.py")):
+        rel = path.relative_to(root).as_posix()
+        hits = _pytds_lines(path.read_text(encoding="utf-8"))
+        assert not hits, f"{rel}: imports pytds on line(s) {hits}"
+
+    for rel in (
+        "app/repositories/sql_server.py",
+        "app/backup.py",
+        "app/services/backup.py",
+        "app/api/ops.py",
+    ):
+        assert not (root / rel).exists(), f"{rel} still exists"
 
 def test_services_and_api_do_not_import_sqlalchemy_or_psycopg():
     import ast

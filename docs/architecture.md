@@ -40,7 +40,7 @@ app/web/ (no build)              |                        |
                    |                          |
              Repository                 Mock providers (default)
              app/repositories/factory.py picks:  OpenRouter provider (opt-in)
-             memory or SQL Server
+             memory or PostgreSQL
 ```
 
 There is no external service in the default configuration. That is deliberate:
@@ -53,7 +53,7 @@ the work.
 | --- | --- | --- | --- |
 | HTTP | `app/api/*.py`, `app/main.py` | schemas, services, errors | contain business rules or touch dicts |
 | Service | `app/services/cards.py`, `app/services/breakdown.py` | repository, schemas, AI layer, settings | build HTTP responses |
-| Repository | `app/repositories/` (memory, sql_server, factory) | schemas, actors | enforce permissions or transitions |
+| Repository | `app/repositories/` (memory, postgres, factory) | schemas, actors | enforce permissions or transitions |
 | AI | `app/ai/*` | schemas for model output | read the store or raise `AppError` (except the registry) |
 | Contracts | `app/schemas/*` | Pydantic only | perform I/O |
 
@@ -84,7 +84,7 @@ Shared: schemas (contracts), errors (AppError without a web framework)
 | --- | --- | --- | --- | --- |
 | HTTP | `app/api/`, `app/main.py`, `app/presenters.py` | Receive the request, check its shape, find out who is calling, map the result to a response | Call services; use schemas; read the token; choose status codes; apply presenters | Business rules (paging policy, 404 rules, role rules); calling repository methods; SQL; importing a database driver |
 | Service | `app/services/` | Own every rule: state machine, roles, preconditions, orchestration | Call the repository interface; call the AI layer; raise `AppError`; read settings | Importing `fastapi`, `starlette`, `app.api` or `app.presenters`; writing SQL; knowing which database is used |
-| Repository | `app/repositories/`, `app/backup.py` | Read and write data; migrations | SQL through the driver; mapping rows to records; one implementation per backend (memory for tests, PostgreSQL) | Business rules; roles; importing services, api or `fastapi`; deciding what is allowed |
+| Repository | `app/repositories/` | Read and write data; migrations | SQL through the driver; mapping rows to records; one implementation per backend (memory for tests, PostgreSQL) | Business rules; roles; importing services, api or `fastapi`; deciding what is allowed |
 | AI | `app/ai/` | Talk to models | Call providers; validate model output shape | Reading the repository; building HTTP responses |
 | Contracts | `app/schemas/` | Request and response shapes | Pydantic only | Any I/O |
 
@@ -127,7 +127,7 @@ through a new ADR.
 The 3.1 table is enforced by tests/test_architecture.py. Injection points
 (app/main.py and app/api/deps.py) are an explicit allowlist, and
 app/presenters.py is a named known debt. Open debts are tracked in
-docs/ROADMAP.md as S8.9, S8.10 and S8.11.
+docs/ROADMAP.md as S8.9 and S8.11.
 
 ## 4. Request lifecycle
 
@@ -160,8 +160,8 @@ app/
   errors.py          AppError and the four exception handlers
   repositories/
     memory.py        dictionaries + RLock, audit log, seeded actors (tests)
-    sql_server.py    SQL Server tables, parameterised queries, connection pool
-    factory.py       build_repository: memory when DB_USER is empty, SQL otherwise
+    postgres.py      PostgreSQL tables, parameterised queries, SQLAlchemy Core
+    factory.py       build_repository: Postgres when DATABASE_URL is set, else memory
   actors.py          six seeded identities (three humans, three agents)
   presenters.py      record -> public model
   rate_limit.py      sliding-window limiter, in-process
@@ -418,7 +418,7 @@ and a breakdown latency histogram per model.
 
 | Limit | Consequence | Planned change |
 | --- | --- | --- |
-| Process-local repository | Data disappears on restart; one process only | PostgreSQL + migrations in week 5 (S9-S11) |
+| In-memory repository (tests) | Data disappears on restart by design; one process only | PostgreSQL via `DATABASE_URL` is the durable store |
 | Header identity | Anyone can claim any seeded actor | Login and sessions in week 6 |
 | In-process limiter | Limits are per worker | Redis in week 7 |
 | No frontend | API-only | Vue board in week 4 |
@@ -426,6 +426,7 @@ and a breakdown latency histogram per model.
 | Hashing embeddings | Lexical matching only | pgvector + a real embedding model |
 | No migration framework | Schema changes are code changes | Alembic with the database |
 
-The interfaces are drawn so these replacements do not touch the HTTP layer: the
-store is behind methods, providers behind a protocol, and limits behind
+PostgreSQL is the durable store; the in-memory repository is for tests and quick
+local runs. The interfaces are drawn so these replacements do not touch the HTTP
+layer: the store is behind methods, providers behind a protocol, and limits behind
 `SlidingWindowLimiter`.

@@ -1,6 +1,6 @@
 """PostgreSQL persistence for cards, comments, PRDs and the audit log.
 
-Same method surface as ``InMemoryRepository`` and ``SqlServerRepository``, so
+Same method surface as ``InMemoryRepository``, so
 services do not know which backend they talk to. Uses SQLAlchemy Core with
 parameterised statements; no string formatting of values into SQL. The schema
 is created by Alembic migrations (S10), not by this module.

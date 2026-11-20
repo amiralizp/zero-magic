@@ -11,7 +11,7 @@ The name is the design: a gantry guides work along fixed rails, and the gates â€
 spec approval, checks, validation â€” are held by humans, not agents.
 
 Weeks 1-3 are intentionally narrow: FastAPI, Pydantic and pytest; a store that
-is in-memory by default and SQL Server when a login is configured; no Vue,
+is in-memory by default and PostgreSQL when `DATABASE_URL` is configured; no Vue,
 Docker or login yet. Those arrive in later weeks.
 
 ## Quick start
@@ -240,74 +240,29 @@ the contracts, validators, retries, fallback, evals and demo usable with no key
 and no bill. Set `OPENROUTER_API_KEY` and real model ids to call
 OpenAI-compatible models through the same interface.
 
-## Database (SQL Server)
+## Database (PostgreSQL)
 
-The store has two implementations behind one interface: `InMemoryRepository` (tests,
-zero setup) and `SqlServerRepository` (durable). `DB_USER` decides which one runs.
+PostgreSQL is the durable store. `DATABASE_URL` selects it; with an empty
+`DATABASE_URL` the app uses `InMemoryRepository`, so tests and a quick look at
+the API need no database server.
 
-```powershell
-# .env
-DB_SERVER=localhost
-DB_NAME=Gantry
-DB_USER=gantry_app
-DB_PASSWORD=...
-```
-
-On startup the app creates the schema if it is missing: `actors`, `cards`,
-`comments`, `prds`, `audit_log`, with foreign keys and indexes. Nothing is
-dropped, so a second start leaves existing rows alone.
-
-The SQL login needs `db_owner` on the database (it creates its own tables). One
-time, as a SQL Server administrator:
-
-```sql
-CREATE DATABASE Gantry;
-CREATE LOGIN gantry_app WITH PASSWORD = '...', CHECK_POLICY = OFF;
-USE Gantry;
-CREATE USER gantry_app FOR LOGIN gantry_app;
-ALTER ROLE db_owner ADD MEMBER gantry_app;
-```
-
-Then SSMS or `sqlcmd` reads the same rows the console shows:
+Create the local database and role once with `scripts/setup-local-db.ps1`, then
+set the URL in `.env`:
 
 ```powershell
-sqlcmd -S localhost -d Gantry -E -C -Q "SELECT stage, COUNT(*) FROM dbo.cards GROUP BY stage"
-sqlcmd -S localhost -d Gantry -E -C -Q "SELECT TOP 10 event, subject_id, actor_id, created_at FROM dbo.audit_log ORDER BY id DESC"
+DATABASE_URL=postgresql+psycopg://gantry_app:...@127.0.0.1:5432/gantry
 ```
 
-`python-tds` is the driver. It is pure Python, because `pyodbc` has no wheel for
-this interpreter and would need a C++ build.
-
-### Backups
-
-Backups are manual on purpose: nothing runs on a timer, so the disk only grows
-when somebody asks for a file. Three ways to ask:
-
-- the **Backup** button in the console header;
-- `Invoke-RestMethod -Method Post http://127.0.0.1:8010/api/v1/backup -Headers @{ "X-Actor-Id" = "human:ada" }`;
-- double-click `backup-db-now.bat`, or run `scripts\backup-db.ps1` (which also
-  runs `RESTORE VERIFYONLY`).
-
-Each run writes `backups\Gantry_<timestamp>.bak`, appends to
-`backups\backup.log`, and prunes files older than `BACKUP_KEEP_DAYS` (14) so a
-forgotten folder still cannot fill the disk.
-
-Restore with:
-
-```sql
-ALTER DATABASE Gantry SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
-RESTORE DATABASE Gantry FROM DISK = N'C:\...\backups\Gantry_20261102_161007.bak'
-  WITH REPLACE, RECOVERY;
-ALTER DATABASE Gantry SET MULTI_USER;
-```
-
-`BACKUP DATABASE` is performed by the SQL Server service account, not by the
-app, so that account needs write access to the destination folder. If the folder
-moves, grant it once:
+Schema changes go through Alembic. Run the migrations yourself (they need
+`DATABASE_URL` in the environment):
 
 ```powershell
-icacls "D:\gantry-backups" /grant "NT SERVICE\MSSQLSERVER:(OI)(CI)M"
+& .venv\Scripts\python.exe -m alembic upgrade head
+& .venv\Scripts\python.exe -m alembic downgrade -1
+& .venv\Scripts\python.exe -m alembic current
 ```
+
+There is no backup endpoint; revisit backups with `pg_dump` after S15.
 
 
 ## Project layout
@@ -323,7 +278,7 @@ zero-magic/
     errors.py       one error envelope and its handlers
     repositories/
       memory.py     in-memory repository (tests, no server)
-      sql_server.py SQL Server repository: same interface, durable rows
+      postgres.py   PostgreSQL repository: same interface, durable rows
       factory.py    selects the repository from settings
 
     web/            build-free console: HTML, CSS, JS
@@ -347,8 +302,8 @@ zero-magic/
 
 ## Deliberate limits
 
-- Without `DB_USER` the store is a process-local dictionary with a lock. With it
-  configured, the data survives a restart in SQL Server.
+- Without `DATABASE_URL` the store is a process-local dictionary with a lock.
+  With it configured, the data survives a restart in PostgreSQL.
 - Identity is a trusted header, not a login. Never run this publicly as-is.
 - Rate limits are per process; multiple workers would need Redis.
 - Mock token counts and prices are estimates; check vendor prices before

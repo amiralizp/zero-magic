@@ -94,18 +94,8 @@ class Settings:
     chat_provider: str = DEFAULT_CHAT_PROVIDER
     chat_session: str = ""
 
-    # SQL Server. Empty db_user means the in-memory store.
-    db_server: str = "localhost"
-    db_name: str = "Gantry"
-    db_user: str = ""
-    db_password: str = field(default="", repr=False)
-
-    # PostgreSQL (S9; used from S11). Empty means SQL Server / in-memory.
+    # PostgreSQL is the durable store. Empty means the in-memory repository.
     database_url: str = field(default="", repr=False)
-
-    # Backups are manual on purpose: a timer would fill the disk unattended.
-    backup_keep_days: int = 14
-    backup_dir: str = "backups"
 
     primary_model: str = DEFAULT_PRIMARY_MODEL
     fallback_model: str = DEFAULT_FALLBACK_MODEL
@@ -135,13 +125,7 @@ class Settings:
             chat_model=os.getenv("CHAT_MODEL", DEFAULT_CHAT_MODEL),
             chat_provider=os.getenv("CHAT_PROVIDER", DEFAULT_CHAT_PROVIDER),
             chat_session=os.getenv("CHAT_SESSION", ""),
-            db_server=os.getenv("DB_SERVER", "localhost"),
-            db_name=os.getenv("DB_NAME", "Gantry"),
-            db_user=os.getenv("DB_USER", ""),
-            db_password=os.getenv("DB_PASSWORD", ""),
             database_url=os.getenv("DATABASE_URL", ""),
-            backup_keep_days=_int("BACKUP_KEEP_DAYS", 14),
-            backup_dir=os.getenv("BACKUP_DIR", "backups"),
             primary_model=os.getenv("MODEL_PRIMARY", DEFAULT_PRIMARY_MODEL),
             fallback_model=os.getenv("MODEL_FALLBACK", DEFAULT_FALLBACK_MODEL),
             openrouter_api_key=key,
