@@ -182,15 +182,15 @@
   - **Done when:** رمز اشتباه → 401؛ رمز درست → توکن؛ هدر `X-Actor-Id` دیگر هویت را تعیین نمی‌کند.
   - **Commit:** `feat(auth): add login and token authentication`
 
-- [ ] **S13 — Authorization: «چه کاری مجازی؟»**  (branch: `step/S13-<slug>`)
+- [x] **S13 — Authorization: «چه کاری مجازی؟»**  (branch: `step/S13-<slug>`)
   - **Goal:** هر نقش فقط کمترین دسترسی لازم را داشته باشد. بررسی در لایه service انجام شود، نه فقط پنهان کردن endpoint.
   - **Tasks:**
-    - نقش‌ها: `human` و `agent`.
-    - human: همه کارهای عادی + انتقال به Done + عملیات مدیریتی (بکاپ).
-    - agent: ساخت کارت، کامنت، انتقال در مرحله‌های مجاز؛ **نه** Done و **نه** مدیریت.
-    - قانون‌ها از قبل در `services/cards.py` هست؛ همان را به نقش واقعی توکن وصل کن.
-  - **Prompt:** `Connect the token's role to the existing stage-machine guards in services/cards.py. Authorization must be enforced in the service layer. Agents must not move cards to Done or call admin operations.`
-  - **Done when:** agent برای رفتن کارت به Done پاسخ ممنوع می‌گیرد، حتی اگر مستقیم به API درخواست بزند.
+    - نقش‌ها: `human` و `agent`. نقش توکن با نقش Actor در store تطبیق میشود؛ عدم تطابق → 401 `invalid_token`.
+    - human: همه کارهای عادی + انتقال به Done. عملیات بکاپ/مدیریتی وجود ندارد (در S11b حذف شد).
+    - agent: کامنت و انتقال در مرحلههای مجاز؛ **نه** ساخت کارت، **نه** Done و **نه** عملیات مدیریتی.
+    - قانونها از قبل در `services/cards.py` هست؛ همان را به نقش واقعی توکن وصل کن و گارد صریح Done را اضافه کن.
+  - **Prompt:** `Connect the token's role to the existing stage-machine guards in services/cards.py. Authorization must be enforced in the service layer. Agents must not move cards to Done or create cards; no admin endpoint is reintroduced.`
+  - **Done when:** agent حتی با دسترسی مستقیم به service نمیتواند کارت را به Done ببرد؛ نقش متناقض در توکن → 401.
   - **Commit:** `feat(auth): enforce roles in service layer`
 
 - [ ] **S14 — تست‌های امنیتی 401 و 403**  (branch: `step/S14-<slug>`)
@@ -199,10 +199,10 @@
     - بدون توکن → 401.
     - توکن خراب یا منقضی → 401.
     - agent → انتقال به Done → 403.
-    - agent → `POST /api/v1/backup` → 403.
-    - human → همان کارها → موفق.
+    - endpoint بکاپ در S11b حذف شد؛ `POST /api/v1/backup` → 404، نه 403.
+    - human → همان کارهای مجاز → موفق.
     - تست را روی همه endpointها parametrize کن تا یکی جا نیفتد.
-  - **Prompt:** `Write parametrized security tests: 401 for missing/invalid token on every endpoint, 403 for agent on Done and admin routes, success for human.`
+  - **Prompt:** `Write parametrized security tests: 401 for missing/invalid token on every endpoint, 403 for agent on Done, success for human, and absence of the removed backup/admin routes.`
   - **Done when:** همه تست‌های 401/403 سبز است. (برای هر کدام یک تست نوشته‌ای.)
   - **Commit:** `test(security): add 401 and 403 tests`
 

@@ -142,9 +142,12 @@ docs/ROADMAP.md as S8.9 and S8.11.
    response, including errors.
 3. **Dependency resolution** (`app/api/deps.py`) reads `Authorization: Bearer`,
    verifies the token through `services/auth.py`, then resolves the actor in the
-   store. Missing or invalid tokens give 401 `missing_token` / `invalid_token`
-   with `WWW-Authenticate: Bearer`; `require_human` adds a 403 `human_only` gate.
-   A legacy `X-Actor-Id` header is ignored, as is any `actor` field in a body.
+   store. The token's `role` claim must match the stored actor's role; a
+   mismatch is a 401 `invalid_token` with `WWW-Authenticate: Bearer`, so a
+   signed token cannot claim a role the store does not grant. Missing or
+   invalid tokens give 401 `missing_token` / `invalid_token`; `require_human`
+   adds a 403 `human_only` gate. A legacy `X-Actor-Id` header is ignored, as is
+   any `actor` field in a body.
 4. **Body validation** by Pydantic. `extra="forbid"` everywhere means a typo or
    an attempt to set an internal field is a 422, not a silent no-op.
 5. **Service call.** The service loads records, applies rules, mutates through
@@ -272,6 +275,7 @@ stage and any move out of `done`.
 | --- | --- | --- |
 | Closed stage enum and edge list | `services/cards.py` | 409 `illegal_transition` |
 | Agents may only take `ready→building`, `building→checks` | `HUMAN_ONLY_TRANSITIONS` | 403 `agent_not_allowed` |
+| An agent never moves a card to `Done` | `transition_card` explicit target check | 403 `agent_not_allowed` |
 | An agent works only its own card | `transition_card` | 403 `not_assignee` |
 | The builder cannot validate its own card | `built_by` comparison | 403 `self_validation_blocked` |
 | Creating/editing/deleting/assigning/PRDs/breakdown is human-only | `require_human` + service | 403 `human_only` |
@@ -282,7 +286,9 @@ stage and any move out of `done`.
 
 The guardrail order matters and is tested: for an agent trying to validate, the
 human-only check fires before the self-validation check, so the error code is
-`agent_not_allowed`, not `self_validation_blocked`.
+`agent_not_allowed`, not `self_validation_blocked`. The explicit `Done` check
+sits between the human-only edge check and the assignee check, so it holds even
+if a future edge into `Done` is not marked human-only.
 
 ## 8. Error model
 
@@ -297,7 +303,7 @@ Every failure, including framework-level ones, looks like:
 | Status | Code | Meaning |
 | --- | --- | --- |
 | 401 | `missing_token` | no `Authorization` header |
-| 401 | `invalid_token` | bad scheme, signature, claims, issuer, expiry or unknown actor |
+| 401 | `invalid_token` | bad scheme, signature, claims, issuer, expiry, unknown actor or role mismatch |
 | 401 | `invalid_credentials` | wrong username or password at login |
 | 500 | `auth_misconfigured` | signing secret shorter than 32 characters |
 | 403 | `human_only` | an agent tried a human action |

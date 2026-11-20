@@ -1,6 +1,6 @@
 # ADR 0009: Token authentication and roles replace the X-Actor-Id header
 
-**Status:** Accepted; S12 implemented (S13 authorization and S14 security tests remain)
+**Status:** Accepted; S12 authentication and S13 authorization implemented (S14 security tests remain)
 **Date:** 2026-11-17
 **Reviewed:** 2026-11-20
 **Deciders:** backend
@@ -26,13 +26,19 @@ they trust an identity that cannot be trusted.
 - Each user has a `UserRecord` with a role (`human` or `agent`) and an actor id
   that maps to the seeded actors. The HTTP layer turns the token into that
   actor; the service layer still decides what the actor may do on every call,
-  so the HTTP API, the chat agent and scripts cannot skip a rule.
+  so the HTTP API, the chat agent and scripts cannot skip a rule. The token's
+  `role` claim is cross-checked against the stored actor on every request; a
+  mismatch is 401 `invalid_token` with `WWW-Authenticate: Bearer`.
 - `X-Actor-Id` no longer determines identity and is ignored everywhere in
   `app/api/`. The chat request schema no longer accepts an `actor` field.
   Missing, malformed, expired or unknown identity gives 401
   (`missing_token`, `invalid_token`); wrong credentials give 401
   `invalid_credentials`; a valid token without permission gives 403.
   Bearer failures include `WWW-Authenticate: Bearer`.
+- Authorization keeps the service-layer rules. Agents may comment and build,
+  never create cards or move a card to `Done`; the service rejects any agent
+  transition whose target is `Done`, even if a future edge is not marked
+  human-only. There is no backup/admin endpoint (removed in S11b) to call.
 - The initial users are `ada` (human) and `builder` (agent). Their passwords are
   read from `GANTRY_HUMAN_PASSWORD` and `GANTRY_AGENT_PASSWORD` by the user-run
   `scripts/setup_auth.py`; there are no credentials in code. The script is
@@ -54,10 +60,11 @@ they trust an identity that cannot be trusted.
 - Tokens cannot yet be refreshed or revoked, and only two bootstrap users exist.
 - Existing header-based tests and examples had to be rewritten.
 
-**Checked by:** `tests/test_auth.py`, `tests/test_auth_core.py` and
-`tests/test_architecture.py` (only the auth service imports `jwt`/`argon2`, no
-legacy identity header in `app/api/`, no `actor` field in the chat schema), plus
-the full HTTP suite for 401/403 contracts.
+**Checked by:** `tests/test_auth.py`, `tests/test_authorization.py`,
+`tests/test_auth_core.py` and `tests/test_architecture.py` (only the auth
+service imports `jwt`/`argon2`, no legacy identity header in `app/api/`, no
+`actor` field in the chat schema), plus the full HTTP suite for 401/403
+contracts and the OpenAPI assertion that no backup route exists.
 
 ## Alternatives considered
 

@@ -67,11 +67,15 @@ Invoke-RestMethod -Method Post `
 
 Every request except `/api/v1/health` needs `Authorization: Bearer <token>`.
 `X-Actor-Id` is ignored; the signed token, not a header or a chat body field,
-decides who you are. A wrong password gives 401 `invalid_credentials`.
+decides who you are. Its `role` claim is checked against the stored actor on
+every request; a mismatch gives 401 `invalid_token`. A wrong password gives 401
+`invalid_credentials`.
 
 Seeded actors: `human:ada`, `human:grace`, `human:linus`, `agent:builder`,
 `agent:reviewer`, `agent:planner`. The initial login accounts are `ada` (human)
-and `builder` (agent); they map to those actor ids.
+and `builder` (agent); they map to those actor ids. Humans create cards and
+validate; agents comment and build. Role rules live in `app/services/`, so
+chat and direct service calls obey the same limits as HTTP.
 
 ## Authentication setup
 
@@ -213,7 +217,8 @@ Spec --(human)--> Ready --(agent)--> Building --(agent)--> Checks
 - `409 illegal_transition` for any edge outside the matrix, including a move to
   the current stage.
 - `403 agent_not_allowed` when an agent tries a human-only edge: approving a
-  spec, sending a card back, accepting checks, or passing validation.
+  spec, sending a card back, accepting checks, or passing validation. The
+  service rejects every agent move into `Done`, whatever the edge list says.
 - `403 not_assignee` when an agent works a card assigned to someone else.
 - `403 self_validation_blocked` when the actor that built a card tries to mark
   it Done.
