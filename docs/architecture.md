@@ -418,7 +418,7 @@ not by the app; no credential is compiled into the server.
 | A04 | Cryptographic Failures | Argon2id-hashed passwords; `JWT_SECRET` only in `.env` | The `.env.example` placeholder is documented and accepted (low) |
 | A05 | Injection | Parameterised queries only; `app/ai/safety.py` scans model prompts | None |
 | A06 | Insecure Design | The builder cannot validate its own card; no design-level bypass | None |
-| A07 | Authentication Failures | Hashed login, expiring tokens, per-username login rate limit, browser token kept only in memory (no localStorage) | Week 7: Redis limiter shared across workers |
+| A07 | Authentication Failures | Hashed login, expiring tokens, per-client-IP and per-username-and-IP login rate limits, browser token kept only in memory (no localStorage), role read from repository on every request | Week 7: Redis limiter shared across workers |
 | A08 | Software or Data Integrity Failures | Alembic migrations only; no backup endpoint | Verify a backup before restore |
 | A09 | Security Logging and Alerting Failures | `audit_log` records transitions and `auth.login_failed` | None |
 | A10 | Mishandling of Exceptional Conditions | Uniform error envelope; `details` carries no file paths or SQL | None |

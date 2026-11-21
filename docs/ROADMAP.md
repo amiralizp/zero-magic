@@ -231,6 +231,7 @@
   - **Done when:** همه موارد بالا انجام شده و برچسب تحویل روی main است.
   - **Commit:** `docs(readme): update run instructions`
 - [x] S17 token kept only in memory in the browser, X-Actor-Id text removed
+- [x] S18 login limit per address, role read from the repository, six bootstrap users
 
 ## OWASP Top 10 (2025) checklist
 

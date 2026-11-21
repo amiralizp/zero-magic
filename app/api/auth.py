@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 
 from ..config import Settings
 from ..errors import AppError
@@ -19,6 +19,7 @@ from ..schemas.auth import LoginRequest, LoginResponse, MeResponse
 from ..schemas.common import ErrorEnvelope
 from ..services import auth as auth_service
 from .deps import (
+    get_login_ip_limiter,
     get_login_limiter,
     get_settings,
     get_store,
@@ -43,22 +44,39 @@ _UNAUTHORIZED = {
     summary="Exchange credentials for a signed token",
 )
 async def login(
+    request: Request,
     payload: LoginRequest,
     store: Annotated[Repository, Depends(get_store)],
     settings: Annotated[Settings, Depends(get_settings)],
+    ip_limiter: Annotated[SlidingWindowLimiter, Depends(get_login_ip_limiter)],
     limiter: Annotated[SlidingWindowLimiter, Depends(get_login_limiter)],
 ) -> LoginResponse:
-    retry_after = limiter.hit(f"login:{payload.username.lower()}")
+    client_host = request.client.host if request.client else "unknown"
+    username = payload.username.lower()
+    # SlidingWindowLimiter has no peek; both checks count all attempts.
+    ip_retry = ip_limiter.hit(f"login:ip:{client_host}")
+    user_retry = limiter.hit(f"login:user-ip:{username}:{client_host}")
+    retry_after = max(
+        (value for value in (ip_retry, user_retry) if value is not None),
+        default=None,
+    )
     if retry_after is not None:
         seconds = max(1, int(retry_after) + 1)
+        if ip_retry is not None:
+            details = {
+                "limit": settings.login_ip_rate_limit,
+                "window_seconds": settings.login_ip_rate_window_seconds,
+            }
+        else:
+            details = {
+                "limit": settings.login_rate_limit,
+                "window_seconds": settings.login_rate_window_seconds,
+            }
         raise AppError(
             429,
             "rate_limited",
             "Too many login attempts. Try again later.",
-            details={
-                "limit": settings.login_rate_limit,
-                "window_seconds": settings.login_rate_window_seconds,
-            },
+            details=details,
             headers={"Retry-After": str(seconds)},
         )
     token = auth_service.authenticate(
@@ -78,12 +96,14 @@ async def login(
     summary="Describe the token's caller",
 )
 async def me(
-    identity: Annotated[auth_service.TokenIdentity, Depends(get_token_identity)],
+    store: Annotated[Repository, Depends(get_store)],
     actor: Annotated[Actor, Depends(require_actor)],
 ) -> MeResponse:
+    user = store.get_user_by_actor_id(actor.id)
+    username = user.username if user is not None else actor.id
     return MeResponse(
         actor_id=actor.id,
-        username=identity.username,
+        username=username,
         role=actor.role,
         display_name=actor.display_name,
     )

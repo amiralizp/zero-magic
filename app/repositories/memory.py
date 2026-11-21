@@ -89,6 +89,13 @@ class InMemoryRepository:
                 None,
             )
 
+    def get_user_by_actor_id(self, actor_id: str) -> UserRecord | None:
+        with self._lock:
+            return next(
+                (user for user in self.users.values() if user.actor_id == actor_id),
+                None,
+            )
+
     def list_users(self) -> list[UserRecord]:
         with self._lock:
             return sorted(self.users.values(), key=lambda user: user.username)

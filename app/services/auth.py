@@ -13,6 +13,8 @@ list on decode, so HS256 is hard-coded here and never taken from the token.
 
 from __future__ import annotations
 
+import secrets
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
@@ -20,7 +22,7 @@ import jwt
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError, VerifyMismatchError
 
-from ..actors import AGENT_BUILDER, HUMAN_ADA
+from ..actors import AGENT_BUILDER, HUMAN_ADA, SEED_ACTORS
 from ..domain_errors import AppError
 from ..records import UserRecord
 from ..repositories.factory import Repository
@@ -145,6 +147,13 @@ def authenticate(
     """Return a signed token for valid credentials, else a generic 401."""
     _require_secret(secret)
     user = store.get_user_by_username(username)
+    if user is None:
+        # S18 bootstraps usernames as actor ids (human:ada). Accept the short
+        # legacy name so existing test fixtures and scripts keep working.
+        for candidate in (f"human:{username}", f"agent:{username}"):
+            user = store.get_user_by_username(candidate)
+            if user is not None:
+                break
     if user is None or not verify_password(user.password_hash, password):
         # Never log the password or a hash; the username is the only subject.
         store.audit(
@@ -171,31 +180,34 @@ def authenticate(
 def bootstrap_users(
     store: Repository,
     *,
-    human_password: str,
-    agent_password: str,
+    passwords: Mapping[str, str] | None = None,
+    human_password: str | None = None,
+    agent_password: str | None = None,
 ) -> list[UserRecord]:
-    """Create the two initial users if they are absent.
+    """Create one user per seeded actor if absent.
 
-    Passwords come from the caller (environment in production, test fixtures in
-    the suite). Nothing here contains a real credential. Existing users are
-    left untouched so a restart never overwrites a rotated password.
+    Usernames are actor ids and roles come from the seeded actor. Passwords are
+    random unless explicitly supplied (tests may supply deterministic values).
+    Existing users are left untouched so a restart never overwrites a password.
     """
-    specs = (
-        ("ada", HUMAN_ADA, ActorRole.HUMAN, human_password),
-        ("builder", AGENT_BUILDER, ActorRole.AGENT, agent_password),
-    )
+
+    supplied = dict(passwords or {})
+    if human_password is not None:
+        supplied.setdefault(HUMAN_ADA, human_password)
+    if agent_password is not None:
+        supplied.setdefault(AGENT_BUILDER, agent_password)
+
     created: list[UserRecord] = []
-    for username, actor_id, role, password in specs:
-        if not password:
+    for actor in SEED_ACTORS:
+        if store.get_user_by_username(actor.id) is not None:
             continue
-        if store.get_user_by_username(username) is not None:
-            continue
+        password = supplied.get(actor.id) or secrets.token_urlsafe(24)
         created.append(
             store.create_user(
-                username=username,
+                username=actor.id,
                 password_hash=hash_password(password),
-                role=role,
-                actor_id=actor_id,
+                role=actor.role,
+                actor_id=actor.id,
             )
         )
     return created

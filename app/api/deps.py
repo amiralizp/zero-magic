@@ -42,6 +42,10 @@ def get_login_limiter(request: Request) -> SlidingWindowLimiter:
     return request.app.state.login_limiter
 
 
+def get_login_ip_limiter(request: Request) -> SlidingWindowLimiter:
+    return request.app.state.login_ip_limiter
+
+
 def get_token_identity(request: Request) -> TokenIdentity:
     """Verify the Authorization header and return the claimed identity."""
 
@@ -70,16 +74,17 @@ def require_actor(
     store: Annotated[Repository, Depends(get_store)],
 ) -> Actor:
     actor = store.get_actor(identity.actor_id)
-    if actor is None:
+    user = store.get_user_by_actor_id(identity.actor_id)
+    if actor is None or user is None:
         raise AppError(
             401,
             "invalid_token",
             "The token names an unknown actor.",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    # The store is authoritative: a signed token cannot claim a role the actor
-    # does not actually have. Mismatches are an authentication failure, not 403.
-    if identity.role is not actor.role:
+    # The repository is authoritative: token role/username claims are informational
+    # only and never grant access. A stale or forged role claim is rejected.
+    if identity.role is not actor.role or identity.role is not user.role:
         raise AppError(
             401,
             "invalid_token",
