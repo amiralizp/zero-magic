@@ -233,6 +233,13 @@
 - [x] S17 token kept only in memory in the browser, X-Actor-Id text removed
 - [x] S18 login limit per address, role read from the repository, six bootstrap users
 
+## OpenCode practice status (honest record)
+
+- **Done:** Context (AGENTS.md, CLAUDE.md, architecture docs), Rules (AGENTS.md, CLAUDE.md), Permissions (opencode.json; note: in practice the permission file was not enforced by the tool, the real guard was AGENTS.md rules plus manual review of every command), Subagents (.opencode/agents/security-reviewer.md).
+- **Partial:** Tools (scoped through opencode.json only).
+- **Demo only:** Agent loop (scripts/agent_loop.py, a bounded tool-use demo).
+- **Not done, recorded as optional practice:** MCP, Headless.
+
 ## OWASP Top 10 (2025) checklist
 
 - [ ] **A01 Broken Access Control** — کاربر یا agent کار غیرمجاز کند. In Gantry: Done فقط human؛ بررسی نقش در services؛ پیش‌فرض: ممنوع
