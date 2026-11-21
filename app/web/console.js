@@ -3,7 +3,7 @@
 const STAGE_FALLBACK = ['spec', 'ready', 'building', 'checks', 'validation', 'done'];
 
 const state = {
-  token: localStorage.getItem('zm.token') || '',
+  token: '',
   identity: null,
   actorId: null,
   actors: [],
@@ -186,7 +186,6 @@ function clearSession() {
   state.meta = null;
   state.cards = [];
   state.prds = [];
-  localStorage.removeItem('zm.token');
 }
 
 function setIdentity(me) {
@@ -243,7 +242,6 @@ async function login(event) {
       throw new Error(payload?.error?.message || `Sign in failed (HTTP ${response.status}).`);
     }
     state.token = payload.access_token;
-    localStorage.setItem('zm.token', state.token);
     const field = $('#login-password');
     if (field) field.value = '';
     await loadSession();

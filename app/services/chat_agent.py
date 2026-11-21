@@ -171,7 +171,7 @@ def system_prompt(store: Repository, actor: Actor | None) -> str:
     who = (
         f"{actor.id} ({actor.display_name}, {actor.role.value})"
         if actor is not None
-        else "nobody — no X-Actor-Id was sent, so every change will be refused"
+        else "nobody — no signed-in user was found, so every change will be refused"
     )
     actors = ", ".join(f"{item.id} ({item.role.value})" for item in store.list_actors())
     human_only = ", ".join(

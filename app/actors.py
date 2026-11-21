@@ -1,9 +1,8 @@
 """Seed identities.
 
-There is no login yet (that is week 6). For weeks 1-3 the caller identifies
-itself with ``X-Actor-Id``; this directory decides whether that id is a human
-or an agent, and therefore what it may do. Unknown ids are rejected, so the
-guardrails cannot be bypassed by inventing ``agent:root``.
+The caller's identity comes from a verified bearer token; this directory defines
+the seeded humans and agents and their roles. The service layer decides what
+each role may do, and unknown identities are rejected.
 """
 
 from __future__ import annotations

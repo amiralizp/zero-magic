@@ -53,6 +53,7 @@ they trust an identity that cannot be trusted.
 - An agent cannot pretend to be a human by changing a header or a chat field.
 - Authentication (who) and authorization (what) are separate and testable.
 - One token works for the console, chat and scripted API clients.
+- The access token is kept only in memory in the browser (no localStorage); a page reload requires a new login.
 
 **Bad**
 
