@@ -2,6 +2,7 @@
 .env
 .env.*
 !.env.example
+gantry-credentials*.txt
 .venv/
 venv/
 

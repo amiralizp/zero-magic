@@ -74,8 +74,8 @@ every request; a mismatch gives 401 `invalid_token`. A wrong password gives 401
 `invalid_credentials`.
 
 Seeded actors: `human:ada`, `human:grace`, `human:linus`, `agent:builder`,
-`agent:reviewer`, `agent:planner`. The initial login accounts are `ada` (human)
-and `builder` (agent); they map to those actor ids. Humans create cards and
+`agent:reviewer`, `agent:planner`. `scripts/setup_auth.py` creates one login
+user per seeded actor; the username is the actor id. Humans create cards and
 validate; agents comment and build. Role rules live in `app/services/`, so
 chat and direct service calls obey the same limits as HTTP.
 
@@ -86,29 +86,29 @@ Set these in your local `.env` (see `.env.example`) before starting the server:
 ```powershell
 JWT_SECRET=replace-with-at-least-32-random-characters
 TOKEN_TTL_SECONDS=3600
-GANTRY_HUMAN_PASSWORD=replace-with-a-strong-password
-GANTRY_AGENT_PASSWORD=replace-with-a-different-strong-password
 ```
 
 Keep real values out of code, logs and commits. After the Alembic migration,
-create the two users yourself:
+create the initial users yourself:
 
 ```powershell
 & .venv\Scripts\python.exe -m alembic upgrade head
 & .venv\Scripts\python.exe scripts\setup_auth.py
 ```
 
-The script reads the environment, hashes both passwords with Argon2id and
-prints usernames only; it never prints passwords or hashes. It is safe to rerun:
-existing users are not overwritten. Tokens expire after `TOKEN_TTL_SECONDS`;
-there is no refresh or logout endpoint yet, so the browser discards its token on
-log out.
+The script creates one user per seeded actor, gives each a random password, and
+writes the credentials to `gantry-credentials.txt` (gitignored). It prints only
+counts and the credentials file path; it never prints passwords. It is safe to
+rerun: existing users are not overwritten. Tokens expire after
+`TOKEN_TTL_SECONDS`; there is no refresh or logout endpoint yet, so the browser
+discards its token on log out.
 
-Login attempts are limited per username: `LOGIN_RATE_LIMIT` attempts per
-`LOGIN_RATE_WINDOW_SECONDS` (default 10 per 60 s). The next attempt inside the
-window returns `429 rate_limited` with a `Retry-After` header. Failed logins are
-written to the audit log as `auth.login_failed` (username and reason only, never
-the password).
+Login attempts are limited per client IP (`LOGIN_IP_RATE_LIMIT`, default 30 per
+60 s) and per username-and-IP pair (`LOGIN_RATE_LIMIT`, default 5 per
+`LOGIN_RATE_WINDOW_SECONDS`). Both limits must pass, so one host cannot lock the
+same username out from another host. A limited attempt returns `429 rate_limited`
+with a `Retry-After` header. Failed logins are written to the audit log as
+`auth.login_failed` (username and reason only, never the password).
 
 ## Interactive console
 
@@ -116,9 +116,10 @@ the password).
 JavaScript, no bundler and no new dependency. It is a convenience for using the
 API by hand, not the week-4 frontend.
 
-- Sign in as `ada` or `builder`; the token is kept in `localStorage` as
-  `zm.token` and sent as `Authorization: Bearer ...`. Log out clears it. The
-  standalone `/chat` page reuses the same token.
+- Sign in with a seeded username (for example `human:ada` or `agent:builder`);
+  the token is kept only in memory and sent as `Authorization: Bearer ...`.
+  Reloading the page requires a new login. The standalone `/chat` page asks for
+  login itself.
 - Drag cards across the six columns to attempt transitions. Illegal edges and
   agent attempts at human-only edges fail with the real 409/403 error, shown as
   a toast.

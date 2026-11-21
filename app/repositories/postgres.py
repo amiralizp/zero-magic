@@ -206,6 +206,17 @@ class PostgresRepository:
             ).fetchone()
         return None if row is None else self._user(row)
 
+    def get_user_by_actor_id(self, actor_id: str) -> UserRecord | None:
+        with self._conn() as conn:
+            row = conn.execute(
+                text(
+                    "SELECT id, username, password_hash, role, actor_id, created_at "
+                    "FROM users WHERE actor_id = :actor_id"
+                ),
+                {"actor_id": actor_id},
+            ).fetchone()
+        return None if row is None else self._user(row)
+
     def list_users(self) -> list[UserRecord]:
         with self._conn() as conn:
             rows = conn.execute(

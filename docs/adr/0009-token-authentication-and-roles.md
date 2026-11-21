@@ -54,11 +54,12 @@ they trust an identity that cannot be trusted.
 - Authentication (who) and authorization (what) are separate and testable.
 - One token works for the console, chat and scripted API clients.
 - The access token is kept only in memory in the browser (no localStorage); a page reload requires a new login.
+- Login attempts are limited per client address and per username-and-address pair, so one client cannot lock another user out; the role is always read from the repository and a token with a different role is rejected.
 
 **Bad**
 
 - Both web pages need a login form; a stored token must be cleared on log out.
-- Tokens cannot yet be refreshed or revoked, and only two bootstrap users exist.
+- Tokens cannot yet be refreshed or revoked; only the six seeded users are bootstrapped.
 - Existing header-based tests and examples had to be rewritten.
 
 **Checked by:** `tests/test_auth.py`, `tests/test_authorization.py`,

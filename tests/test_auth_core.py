@@ -84,16 +84,26 @@ def test_short_secret_is_a_configuration_error():
     assert error.value.status_code == 500
 
 
-def test_bootstrap_creates_both_users_once_without_storing_passwords():
+def test_bootstrap_creates_all_seed_users_once_without_storing_passwords():
     store = InMemoryRepository()
     created = bootstrap_users(
         store,
         human_password=TEST_HUMAN_PASSWORD,
         agent_password=TEST_AGENT_PASSWORD,
     )
-    assert [user.username for user in created] == ["ada", "builder"]
-    assert [user.actor_id for user in created] == [HUMAN, AGENT]
-    assert [user.role for user in created] == [ActorRole.HUMAN, ActorRole.AGENT]
+    assert len(created) == 6
+    assert {user.username for user in created} == {
+        "human:ada",
+        "human:grace",
+        "human:linus",
+        "agent:builder",
+        "agent:reviewer",
+        "agent:planner",
+    }
+    ada = next(user for user in created if user.actor_id == HUMAN)
+    builder = next(user for user in created if user.actor_id == AGENT)
+    assert ada.role is ActorRole.HUMAN
+    assert builder.role is ActorRole.AGENT
 
     again = bootstrap_users(
         store,
@@ -102,7 +112,7 @@ def test_bootstrap_creates_both_users_once_without_storing_passwords():
     )
     assert again == []
 
-    ada = store.get_user_by_username("ada")
+    ada = store.get_user_by_username("human:ada")
     assert ada is not None
     assert ada.password_hash != TEST_HUMAN_PASSWORD
     assert verify_password(ada.password_hash, TEST_HUMAN_PASSWORD) is True

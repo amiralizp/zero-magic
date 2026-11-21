@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+from starlette.testclient import TestClient
 
 from app.schemas.actors import ActorRole
 from app.schemas.chat import ChatCompletionRequest
@@ -22,10 +23,15 @@ from tests.helpers import (
 )
 
 
-def _login(client, username: str, password: str):
-    return client.post(
+def _login(http_client, username: str, password: str, **kwargs):
+    client_addr = kwargs.pop("client", None)
+    target = http_client
+    if client_addr is not None:
+        target = TestClient(http_client.app, client=client_addr)
+    return target.post(
         "/api/v1/auth/login",
         json={"username": username, "password": password},
+        **kwargs,
     )
 
 
@@ -78,19 +84,21 @@ def test_failed_login_is_written_to_the_audit_log():
     assert "wrong-password" not in str(entries)
 
 
-def test_login_is_rate_limited_per_username():
-    client = make_client(auth=False, login_rate_limit=2)
-    assert [_login(client, "ada", "wrong-password").status_code for _ in range(3)] == [
-        401,
-        401,
-        429,
-    ]
-    response = _login(client, "ada", TEST_HUMAN_PASSWORD)
-    assert response.status_code == 429
-    assert response.json()["error"]["code"] == "rate_limited"
-    assert response.headers["retry-after"]
-    # The budget belongs to the username, not to the whole login endpoint.
-    assert _login(client, "builder", TEST_AGENT_PASSWORD).status_code == 200
+def test_login_rate_limit_is_per_username_and_ip():
+    client = make_client(auth=False, login_rate_limit=2, login_ip_rate_limit=100)
+    same_host = {"client": ("10.0.0.1", 50000)}
+    other_host = {"client": ("10.0.0.2", 50000)}
+    assert [
+        _login(client, "ada", "wrong-password", **same_host).status_code
+        for _ in range(3)
+    ] == [401, 401, 429]
+    # Same username from another host is not blocked by the first host.
+    assert _login(client, "ada", TEST_HUMAN_PASSWORD, **other_host).status_code == 200
+    # Original host is still blocked for that username+ip pair.
+    blocked = _login(client, "ada", TEST_HUMAN_PASSWORD, **same_host)
+    assert blocked.status_code == 429
+    assert blocked.json()["error"]["code"] == "rate_limited"
+    assert blocked.headers["retry-after"]
 
 
 def test_login_token_works_on_a_protected_route():
@@ -141,7 +149,7 @@ def test_me_reports_the_token_identity():
     assert response.status_code == 200
     body = response.json()
     assert body["actor_id"] == HUMAN
-    assert body["username"] == "ada"
+    assert body["username"] == "human:ada"
     assert body["role"] == "human"
 
 
@@ -224,3 +232,67 @@ def test_token_role_must_match_the_stored_actor_role(actor_id, username, claimed
 def test_raw_client_helper_does_not_add_a_token():
     app = make_client().app
     assert raw_client(app).get("/api/v1/cards").status_code == 401
+
+
+def test_login_ip_rate_limit_blocks_one_host_trying_many_usernames():
+    client = make_client(auth=False, login_ip_rate_limit=2, login_rate_limit=100)
+    same_host = {"client": ("10.0.0.9", 50000)}
+    assert _login(client, "ada", "wrong-password", **same_host).status_code == 401
+    assert _login(client, "builder", "wrong-password", **same_host).status_code == 401
+    blocked = _login(client, "human:grace", "wrong-password", **same_host)
+    assert blocked.status_code == 429
+    assert blocked.json()["error"]["code"] == "rate_limited"
+    # A different host is unaffected by this host's IP budget.
+    assert _login(client, "human:grace", "wrong-password", client=("10.0.0.10", 50000)).status_code == 401
+
+
+def test_role_change_in_repository_invalidates_existing_token():
+    client = make_client(auth=False)
+    token = _login(client, "ada", TEST_HUMAN_PASSWORD).json()["access_token"]
+    ok = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
+    assert ok.status_code == 200
+
+    store = client.app.state.store
+    user = store.get_user_by_actor_id(HUMAN)
+    assert user is not None
+    user.role = ActorRole.AGENT  # mutate repository record
+
+    rejected = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
+    assert rejected.status_code == 401
+    assert rejected.json()["error"]["code"] == "invalid_token"
+
+
+def test_forged_human_role_claim_for_agent_actor_fails():
+    client = make_client(auth=False)
+    forged = issue_token(
+        actor_id=AGENT,
+        username="builder",
+        role=ActorRole.HUMAN,
+        secret=TEST_JWT_SECRET,
+        ttl_seconds=TEST_TOKEN_TTL_SECONDS,
+    )
+    response = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {forged}"})
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "invalid_token"
+
+
+def test_bootstrap_creates_six_users_and_is_idempotent():
+    client = make_client(auth=False)
+    store = client.app.state.store
+    users = store.list_users()
+    assert len(users) == 6
+    usernames = {u.username for u in users}
+    assert usernames == {
+        "human:ada",
+        "human:grace",
+        "human:linus",
+        "agent:builder",
+        "agent:reviewer",
+        "agent:planner",
+    }
+    # Idempotent: calling bootstrap again does not create duplicates.
+    from app.services.auth import bootstrap_users
+
+    again = bootstrap_users(store, passwords={})
+    assert again == []
+    assert len(store.list_users()) == 6

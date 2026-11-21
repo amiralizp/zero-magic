@@ -60,8 +60,13 @@ def create_app(
         limit=settings.breakdown_rate_limit,
         window_seconds=settings.breakdown_rate_window_seconds,
     )
-    # Login gets its own counter so a burst of breakdowns cannot lock out a
-    # user, and brute-force attempts cannot consume the breakdown budget.
+    # Login gets two in-memory counters: per client IP and per username+IP.
+    # Both must pass so one host cannot lock out the same username from another
+    # host. Failed and successful attempts both count (limiter has no peek).
+    app.state.login_ip_limiter = SlidingWindowLimiter(
+        limit=settings.login_ip_rate_limit,
+        window_seconds=settings.login_ip_rate_window_seconds,
+    )
     app.state.login_limiter = SlidingWindowLimiter(
         limit=settings.login_rate_limit,
         window_seconds=settings.login_rate_window_seconds,

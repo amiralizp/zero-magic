@@ -14,8 +14,10 @@ DEFAULT_FRONTEND_ORIGIN = "http://localhost:5173"
 DEFAULT_TIMEOUT = 15.0
 DEFAULT_RATE_LIMIT = 5
 DEFAULT_RATE_WINDOW = 60.0
-DEFAULT_LOGIN_RATE_LIMIT = 10
+DEFAULT_LOGIN_RATE_LIMIT = 5
 DEFAULT_LOGIN_RATE_WINDOW = 60.0
+DEFAULT_LOGIN_IP_RATE_LIMIT = 30
+DEFAULT_LOGIN_IP_RATE_WINDOW = 60.0
 DEFAULT_MAX_PRD_CHARS = 20_000
 DEFAULT_MAX_CARDS = 10
 DEFAULT_RETRIES = 2
@@ -105,6 +107,8 @@ class Settings:
     token_ttl_seconds: int = DEFAULT_TOKEN_TTL_SECONDS
     login_rate_limit: int = DEFAULT_LOGIN_RATE_LIMIT
     login_rate_window_seconds: float = DEFAULT_LOGIN_RATE_WINDOW
+    login_ip_rate_limit: int = DEFAULT_LOGIN_IP_RATE_LIMIT
+    login_ip_rate_window_seconds: float = DEFAULT_LOGIN_IP_RATE_WINDOW
 
     primary_model: str = DEFAULT_PRIMARY_MODEL
     fallback_model: str = DEFAULT_FALLBACK_MODEL
@@ -140,6 +144,10 @@ class Settings:
             login_rate_limit=_int("LOGIN_RATE_LIMIT", DEFAULT_LOGIN_RATE_LIMIT),
             login_rate_window_seconds=_float(
                 "LOGIN_RATE_WINDOW_SECONDS", DEFAULT_LOGIN_RATE_WINDOW
+            ),
+            login_ip_rate_limit=_int("LOGIN_IP_RATE_LIMIT", DEFAULT_LOGIN_IP_RATE_LIMIT),
+            login_ip_rate_window_seconds=_float(
+                "LOGIN_IP_RATE_WINDOW_SECONDS", DEFAULT_LOGIN_IP_RATE_WINDOW
             ),
             primary_model=os.getenv("MODEL_PRIMARY", DEFAULT_PRIMARY_MODEL),
             fallback_model=os.getenv("MODEL_FALLBACK", DEFAULT_FALLBACK_MODEL),
