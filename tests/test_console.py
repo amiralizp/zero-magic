@@ -81,6 +81,14 @@ def test_standalone_chat_shares_the_same_token(client):
     assert 'id="chatLoginForm"' in page
     assert 'id="chatLogoutBtn"' in page
     script = client.get("/chat/assets/app.js").text
-    assert "zm.token" in script
     assert "Bearer ${authToken}" in script
     assert "actor:" not in script
+
+
+def test_console_and_chat_keep_access_token_in_memory_only(client):
+    console_js = client.get("/console/assets/console.js").text
+    chat_js = client.get("/chat/assets/app.js").text
+    for script in (console_js, chat_js):
+        assert "localStorage.setItem('zm.token'" not in script
+        assert "sessionStorage" not in script
+        assert "document.cookie" not in script

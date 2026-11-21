@@ -230,6 +230,7 @@
   - **Prompt:** `Run pytest -q, check alembic upgrade head on a fresh database, and list any file where a layer rule is bent. Do not change anything.`
   - **Done when:** همه موارد بالا انجام شده و برچسب تحویل روی main است.
   - **Commit:** `docs(readme): update run instructions`
+- [x] S17 token kept only in memory in the browser, X-Actor-Id text removed
 
 ## OWASP Top 10 (2025) checklist
 

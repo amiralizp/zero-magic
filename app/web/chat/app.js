@@ -1,7 +1,7 @@
 let messages = [];
 let currentModel = '';
 let isGenerating = false;
-let authToken = localStorage.getItem('zm.token') || '';
+let authToken = '';
 
 const chatContainer = document.getElementById('chatContainer');
 const messagesDiv = document.getElementById('messages');
@@ -53,7 +53,6 @@ async function loadSession() {
     const res = await fetch('/api/v1/auth/me', { headers: authHeaders() });
     if (!res.ok) {
         authToken = '';
-        localStorage.removeItem('zm.token');
         showLogin('نشست منقضی شد. دوباره وارد شوید.');
         return false;
     }
@@ -76,7 +75,6 @@ async function login(event) {
             throw new Error(payload?.error?.message || 'ورود ناموفق بود.');
         }
         authToken = payload.access_token;
-        localStorage.setItem('zm.token', authToken);
         const field = document.getElementById('chatPassword');
         if (field) field.value = '';
         if (await loadSession()) await loadModels();
@@ -87,7 +85,6 @@ async function login(event) {
 
 function logout() {
     authToken = '';
-    localStorage.removeItem('zm.token');
     showLogin();
 }
 
@@ -294,7 +291,6 @@ async function sendMessage() {
             const err = await res.json().catch(() => ({}));
             if (res.status === 401 && authToken) {
                 authToken = '';
-                localStorage.removeItem('zm.token');
                 showLogin('نشست منقضی شد. دوباره وارد شوید.');
             }
             throw new Error(err?.error?.message || err.detail || 'خطا در ارتباط با سرور');

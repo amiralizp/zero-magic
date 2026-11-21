@@ -635,3 +635,25 @@ def test_auth_service_is_framework_free():
             module = node.module or ""
             top = module.split(".")[0]
             assert top not in forbidden, f"{rel}:{node.lineno}: imports from {module}"
+
+
+# --- S17 stale identity text -------------------------------------------------
+
+
+def _legacy_header_lines(source: str) -> list[int]:
+    lines: list[int] = []
+    for lineno, line in enumerate(source.splitlines(), start=1):
+        if "x-actor-id" in line.lower():
+            lines.append(lineno)
+    return lines
+
+
+def test_no_file_under_app_contains_x_actor_id():
+    # Positive control: the detector catches the legacy header in either case.
+    assert _legacy_header_lines("X-Actor-Id: nope\n") == [1]
+    assert _legacy_header_lines("x-actor-id\n") == [1]
+
+    for path in sorted((ROOT / "app").rglob("*.py")):
+        rel = path.relative_to(ROOT).as_posix()
+        hits = _legacy_header_lines(path.read_text(encoding="utf-8"))
+        assert not hits, f"{rel}: stale X-Actor-Id text on line(s) {hits}"
