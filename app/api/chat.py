@@ -12,6 +12,7 @@ change rather than an API change.
 from __future__ import annotations
 
 import json
+import logging
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Request
@@ -27,6 +28,8 @@ from ..services import chat as chat_policy
 from ..services.chat_agent import prepare_messages, run_agent
 from ..repositories.factory import Repository
 from .deps import get_settings, get_store, require_actor
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/chat", tags=["chat"])
 
@@ -143,15 +146,21 @@ async def chat_completions(
             yield "data: [DONE]\n\n"
         except ChatUpstreamError as exc:
             status = exc.status
+            logger.warning(
+                "chat upstream error code=chat_upstream_error status=%s kind=%s",
+                status,
+                exc.kind,
+            )
             if status is not None:
                 hint = chat_policy.upstream_hint(settings, status)
                 if hint is not None:
                     yield _error_frame(hint)
                     return
-                yield _error_frame(f"{settings.chat_provider} error {status}: {exc.detail}")
-                return
-            yield _error_frame(str(exc) or exc.__class__.__name__)
+            yield _error_frame("chat_upstream_error: the chat provider request failed")
         except Exception as exc:  # noqa: BLE001 - surfaced to the browser as a frame
-            yield _error_frame(str(exc) or exc.__class__.__name__)
+            logger.warning(
+                "chat error code=chat_internal_error type=%s", exc.__class__.__name__
+            )
+            yield _error_frame("chat_internal_error: the chat request failed")
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")

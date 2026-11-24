@@ -72,7 +72,9 @@ def test_500_non_json_body_yields_error_frame(monkeypatch):
     frames = _events(response)
     assert len(frames) == 1
     assert "error" in frames[0]
-    assert "500" in frames[0]["error"]
+    assert "chat_upstream_error" in frames[0]["error"]
+    assert "500" not in frames[0]["error"]
+    assert "not json at all" not in response.text
 
 
 def test_stream_fails_after_first_event(monkeypatch):
