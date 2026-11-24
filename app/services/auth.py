@@ -31,8 +31,15 @@ from ..schemas.actors import ActorRole
 ALGORITHM = "HS256"
 ISSUER = "gantry"
 MIN_SECRET_LENGTH = 32
+JWT_SECRET_PLACEHOLDER = "replace-with-at-least-32-random-characters"
+_WEAK_SECRET_PREFIXES = ("replace-with", "change_me", "changeme")
 
 _hasher = PasswordHasher()
+_DUMMY_PASSWORD_HASH = _hasher.hash("dummy-password-for-timing-equalization")
+
+
+def _dummy_verify_password(password: str) -> bool:
+    return verify_password(_DUMMY_PASSWORD_HASH, password)
 
 
 @dataclass(frozen=True)
@@ -45,11 +52,19 @@ class TokenIdentity:
 
 
 def _require_secret(secret: str) -> None:
-    if len(secret) < MIN_SECRET_LENGTH:
+    secret_value = secret.strip()
+    lowered = secret_value.lower()
+    weak = (
+        len(secret_value) < MIN_SECRET_LENGTH
+        or secret_value == JWT_SECRET_PLACEHOLDER
+        or lowered.startswith(_WEAK_SECRET_PREFIXES)
+        or len(set(secret_value)) < 8
+    )
+    if weak:
         raise AppError(
             status_code=500,
             code="auth_misconfigured",
-            message=f"JWT_SECRET must be at least {MIN_SECRET_LENGTH} characters.",
+            message="JWT authentication is not configured correctly.",
         )
 
 
@@ -154,7 +169,12 @@ def authenticate(
             user = store.get_user_by_username(candidate)
             if user is not None:
                 break
-    if user is None or not verify_password(user.password_hash, password):
+    if user is None:
+        _dummy_verify_password(password)
+        password_ok = False
+    else:
+        password_ok = verify_password(user.password_hash, password)
+    if not password_ok:
         # Never log the password or a hash; the username is the only subject.
         store.audit(
             "auth.login_failed",

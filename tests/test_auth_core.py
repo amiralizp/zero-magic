@@ -84,6 +84,71 @@ def test_short_secret_is_a_configuration_error():
     assert error.value.status_code == 500
 
 
+@pytest.mark.parametrize(
+    "secret",
+    [
+        "replace-with-at-least-32-random-characters",
+        "replace-with-something-else-that-is-long-enough",
+        "CHANGE_ME_TO_A_REAL_SECRET_THAT_IS_LONG_ENOUGH",
+        "changeme-but-make-it-long-enough-to-pass-length",
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    ],
+)
+def test_weak_or_placeholder_jwt_secret_is_rejected(secret):
+    from app.services.auth import JWT_SECRET_PLACEHOLDER
+
+    candidates = list(dict.fromkeys([*["replace-with-at-least-32-random-characters" if s == "replace-with-at-least-32-random-characters" else s for s in [secret]], JWT_SECRET_PLACEHOLDER]))
+    # Test the parametrized secret; also ensure placeholder constant is rejected.
+    for candidate in dict.fromkeys([secret, JWT_SECRET_PLACEHOLDER]):
+        with pytest.raises(AppError) as error:
+            issue_token(
+                actor_id=HUMAN,
+                username="ada",
+                role=ActorRole.HUMAN,
+                secret=candidate,
+                ttl_seconds=3600,
+            )
+        assert error.value.code == "auth_misconfigured"
+        assert error.value.status_code == 500
+
+
+def test_strong_generated_jwt_secret_is_accepted():
+    import secrets
+
+    token = issue_token(
+        actor_id=HUMAN,
+        username="ada",
+        role=ActorRole.HUMAN,
+        secret=secrets.token_urlsafe(48),
+        ttl_seconds=3600,
+    )
+    assert token
+
+
+def test_authenticate_unknown_user_runs_dummy_verify(monkeypatch):
+    from app.repositories.memory import InMemoryRepository
+    from app.services import auth
+
+    store = InMemoryRepository()
+    called = {"value": False}
+
+    def fake_dummy(password: str) -> bool:
+        called["value"] = True
+        return False
+
+    monkeypatch.setattr(auth, "_dummy_verify_password", fake_dummy)
+    with pytest.raises(AppError) as error:
+        auth.authenticate(
+            store,
+            "nobody",
+            "wrong-password",
+            secret=TEST_JWT_SECRET,
+            ttl_seconds=3600,
+        )
+    assert error.value.code == "invalid_credentials"
+    assert called["value"] is True
+
+
 def test_bootstrap_creates_all_seed_users_once_without_storing_passwords():
     store = InMemoryRepository()
     created = bootstrap_users(
