@@ -69,6 +69,17 @@ def test_prd_validation(client):
         assert response.json()["error"]["code"] == "invalid_payload"
 
 
+def test_prd_invisible_only_body_is_rejected(client):
+    invisible = "\u200b\u200c\u200d\u2060\ufeff\u3164\u115f\u1160\u180e" * 3
+    response = client.post(
+        "/api/v1/prds",
+        headers=headers(HUMAN),
+        json={"title": "Valid title", "body": invisible},
+    )
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "invalid_payload"
+
+
 def test_prd_body_limit_comes_from_settings():
     client = make_client(max_prd_chars=120)
     payload = {

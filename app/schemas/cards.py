@@ -23,6 +23,9 @@ from .actors import Actor
 
 MAX_CRITERIA = 5
 MAX_SCOPE_ITEMS = 10
+MAX_CRITERION_LENGTH = 300
+MAX_SCOPE_ITEM_LENGTH = 200
+_INVISIBLE_CHARS = frozenset("\u200b\u200c\u200d\u2060\ufeff\u3164\u115f\u1160\u180e")
 
 
 class Stage(str, Enum):
@@ -48,11 +51,18 @@ def _clean_text(value: str) -> str:
     cleaned = value.strip()
     if not cleaned:
         raise ValueError("must not be blank")
+    visible = "".join(ch for ch in cleaned if ch not in _INVISIBLE_CHARS)
+    if not visible.strip():
+        raise ValueError("must not be blank")
     return cleaned
 
 
 def _clean_criteria(items: list[str]) -> list[str]:
     cleaned = [_clean_text(item) for item in items]
+    if any(len(item) > MAX_CRITERION_LENGTH for item in cleaned):
+        raise ValueError(
+            f"acceptance criteria items must be at most {MAX_CRITERION_LENGTH} characters"
+        )
     if len({item.casefold() for item in cleaned}) != len(cleaned):
         raise ValueError("acceptance criteria must be unique")
     return cleaned
@@ -60,6 +70,10 @@ def _clean_criteria(items: list[str]) -> list[str]:
 
 def _clean_scope(items: list[str]) -> list[str]:
     cleaned = [_clean_text(item) for item in items]
+    if any(len(item) > MAX_SCOPE_ITEM_LENGTH for item in cleaned):
+        raise ValueError(
+            f"out of scope items must be at most {MAX_SCOPE_ITEM_LENGTH} characters"
+        )
     if len(cleaned) > MAX_SCOPE_ITEMS:
         raise ValueError(f"out_of_scope accepts at most {MAX_SCOPE_ITEMS} items")
     return cleaned
