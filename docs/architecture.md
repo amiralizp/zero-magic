@@ -414,14 +414,14 @@ not by the app; no credential is compiled into the server.
 | --- | --- | --- | --- |
 | A01 | Broken Access Control | Roles are checked in services on every call; agents never reach `done`; default deny | None |
 | A02 | Security Misconfiguration | Single CORS origin, no debug flag, `.env` gitignored | Add security headers at the proxy |
-| A03 | Software Supply Chain Failures | Versions pinned in `requirements.txt`; only the packages the app needs | None |
-| A04 | Cryptographic Failures | Argon2id-hashed passwords; `JWT_SECRET` only in `.env` | The `.env.example` placeholder is documented and accepted (low) |
+| A03 | Software Supply Chain Failures | Versions pinned in `requirements.txt`; browser CDN assets in `app/web` are pinned and verified (SRI or vendored locally) | Z-2, Z-7 remain open; nine spec questions remain open |
+| A04 | Cryptographic Failures | Argon2id-hashed passwords; `JWT_SECRET` only in `.env`; placeholder/weak secrets rejected at startup/auth path (500 `auth_misconfigured`, no detail) | Z-1 remains open; nine spec questions remain open |
 | A05 | Injection | Parameterised queries only; `app/ai/safety.py` scans model prompts | None |
-| A06 | Insecure Design | The builder cannot validate its own card; no design-level bypass | None |
-| A07 | Authentication Failures | Hashed login, expiring tokens, per-client-IP and per-username-and-IP login rate limits, browser token kept only in memory (no localStorage), role read from repository on every request | Week 7: Redis limiter shared across workers |
+| A06 | Insecure Design | The builder cannot validate its own card; no design-level bypass | Z-8, Z-9 remain open; nine spec questions remain open |
+| A07 | Authentication Failures | Hashed login, expiring tokens, per-client-IP and per-username-and-IP login rate limits, browser token kept only in memory (no localStorage), role read from repository on every request; unknown-user login does dummy argon2 verify | Week 7: Redis limiter shared across workers; Z-11 remains open |
 | A08 | Software or Data Integrity Failures | Alembic migrations only; no backup endpoint | Verify a backup before restore |
 | A09 | Security Logging and Alerting Failures | `audit_log` records transitions and `auth.login_failed` | None |
-| A10 | Mishandling of Exceptional Conditions | Uniform error envelope; `details` carries no file paths or SQL | None |
+| A10 | Mishandling of Exceptional Conditions | Uniform error envelope; `details` carries no file paths or SQL; chat error frames/logs do not expose raw upstream/exception text | Z-1, Z-2 remain open; nine spec questions remain open |
 
 ### S15 audit findings
 
@@ -432,7 +432,7 @@ rest:
 | --- | --- | --- | --- |
 | Login had no rate limit | A07 | Fixed | `app/api/auth.py`, `app/api/deps.py`, `app/main.py`, `app/config.py` |
 | Failed logins were not audited | A09 | Fixed | `app/services/auth.py` |
-| Placeholder `JWT_SECRET` in `.env.example` | A04 | Accepted (low) | `.env.example` |
+| Placeholder `JWT_SECRET` in `.env.example` | A04 | Fixed in S20 (placeholder/weak secrets rejected, 500 `auth_misconfigured`, no detail) | `app/services/auth.py`, `.env.example` |
 | Old `prd_id` finding in `docs/ROADMAP.md` | A06/A10 | Closed as obsolete | `CardCreate` has no `prd_id`; breakdown validates with `get_prd_or_404` |
 
 The review is reproducible with the read-only subagent in
