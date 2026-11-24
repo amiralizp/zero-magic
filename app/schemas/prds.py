@@ -23,11 +23,16 @@ from .cards import CardRead
 
 MAX_DRAFT_CARDS = 10
 MAX_DRAFT_CRITERIA = 5
+MAX_CRITERION_LENGTH = 300
+_INVISIBLE_CHARS = frozenset("\u200b\u200c\u200d\u2060\ufeff\u3164\u115f\u1160\u180e")
 
 
 def _clean(value: str) -> str:
     cleaned = value.strip()
     if not cleaned:
+        raise ValueError("must not be blank")
+    visible = "".join(ch for ch in cleaned if ch not in _INVISIBLE_CHARS)
+    if not visible.strip():
         raise ValueError("must not be blank")
     return cleaned
 
@@ -76,6 +81,10 @@ class CardDraft(BaseModel):
     @classmethod
     def _criteria(cls, value: list[str]) -> list[str]:
         cleaned = [_clean(item) for item in value]
+        if any(len(item) > MAX_CRITERION_LENGTH for item in cleaned):
+            raise ValueError(
+                f"acceptance criteria items must be at most {MAX_CRITERION_LENGTH} characters"
+            )
         if len({item.casefold() for item in cleaned}) != len(cleaned):
             raise ValueError("acceptance criteria must be unique")
         return cleaned

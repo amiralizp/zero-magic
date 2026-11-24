@@ -84,7 +84,8 @@ def test_upstream_429_hint(monkeypatch):
 
 def test_upstream_unmapped_status(monkeypatch):
     err = _upstream_test(monkeypatch, 500)
-    assert "error 500" in err
+    assert "chat_upstream_error" in err
+    assert "error 500" not in err
 
 
 def test_actor_body_claim_is_rejected():

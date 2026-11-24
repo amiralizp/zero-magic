@@ -103,6 +103,82 @@ def test_invalid_create_payload_returns_422_with_one_error_shape(client, payload
     assert all("location" in item for item in error["details"])
 
 
+def test_card_item_length_limits(client):
+    too_long_criterion = "c" * 301
+    too_long_scope = "s" * 201
+    ok_criterion = "c" * 300
+    ok_scope = "s" * 200
+
+    over_criterion = client.post(
+        "/api/v1/cards",
+        headers=headers(HUMAN),
+        json=card_payload(acceptance_criteria=[too_long_criterion]),
+    )
+    assert over_criterion.status_code == 422
+    assert over_criterion.json()["error"]["code"] == "invalid_payload"
+
+    over_scope = client.post(
+        "/api/v1/cards",
+        headers=headers(HUMAN),
+        json=card_payload(out_of_scope=[too_long_scope]),
+    )
+    assert over_scope.status_code == 422
+    assert over_scope.json()["error"]["code"] == "invalid_payload"
+
+    accepted = client.post(
+        "/api/v1/cards",
+        headers=headers(HUMAN),
+        json=card_payload(acceptance_criteria=[ok_criterion], out_of_scope=[ok_scope]),
+    )
+    assert accepted.status_code == 201
+    body = accepted.json()
+    assert body["acceptance_criteria"] == [ok_criterion]
+    assert body["out_of_scope"] == [ok_scope]
+
+
+def test_invisible_only_text_is_rejected_and_persian_half_space_preserved(client):
+    invisible = "\u200b\u200c\u200d\u2060\ufeff\u3164\u115f\u1160\u180e"
+
+    title = client.post(
+        "/api/v1/cards",
+        headers=headers(HUMAN),
+        json=card_payload(title=invisible),
+    )
+    assert title.status_code == 422
+    assert title.json()["error"]["code"] == "invalid_payload"
+
+    goal = client.post(
+        "/api/v1/cards",
+        headers=headers(HUMAN),
+        json=card_payload(goal=invisible),
+    )
+    assert goal.status_code == 422
+
+    criterion = client.post(
+        "/api/v1/cards",
+        headers=headers(HUMAN),
+        json=card_payload(acceptance_criteria=[invisible]),
+    )
+    assert criterion.status_code == 422
+
+    persian = "می\u200cخواهم"
+    created = client.post(
+        "/api/v1/cards",
+        headers=headers(HUMAN),
+        json=card_payload(title=persian),
+    )
+    assert created.status_code == 201
+    assert created.json()["title"] == persian
+
+    comment = client.post(
+        f"/api/v1/cards/{created.json()['id']}/comments",
+        headers=headers(HUMAN),
+        json={"body": invisible},
+    )
+    assert comment.status_code == 422
+    assert comment.json()["error"]["code"] == "invalid_payload"
+
+
 def test_unknown_assignee_is_a_reference_error(client):
     response = client.post(
         "/api/v1/cards",

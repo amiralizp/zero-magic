@@ -159,6 +159,25 @@ def test_completions_explains_a_rate_limit(monkeypatch):
     assert "rate-limited" in frames[0]["error"]
 
 
+def test_chat_error_stream_never_leaks_raw_exception_text(monkeypatch):
+    async def fake_complete(self, messages, model=None, temperature=0.7, max_tokens=2048, tools=None):
+        raise Exception("upstream failed token=sk-live-abc123 from 10.0.0.7")
+
+    monkeypatch.setattr(chat_api.ChatClient, "complete", fake_complete)
+    client = helpers.make_client(chat_api_key="test-key")
+    response = client.post(
+        "/api/v1/chat/completions", json={"messages": [{"role": "user", "content": "hi"}]}
+    )
+    assert response.status_code == 200
+    body = response.text
+    assert "sk-live-abc123" not in body
+    assert "10.0.0.7" not in body
+    assert "token=" not in body
+    frames = _events(response)
+    assert len(frames) == 1
+    assert "error" in frames[0]
+
+
 def test_chat_creates_a_spec_as_the_signed_in_human(monkeypatch):
     calls = {"n": 0}
 
