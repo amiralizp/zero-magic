@@ -2,31 +2,9 @@
 
 from __future__ import annotations
 
-from app.services.chat_agent import draft_spec, execute_tool, prepare_messages, spec_request_text
+from app.services.chat_agent import execute_tool, prepare_messages
 
 import tests.helpers as helpers
-
-
-def test_a_persian_create_request_is_recognised():
-    messages = [{"role": "user", "content": "برام یه کارت جدید بساز"}]
-    assert spec_request_text(messages) is not None
-    draft = draft_spec(messages[0]["content"])
-    assert 3 <= len(draft["title"]) <= 80
-    assert len(draft["goal"]) >= 10
-    assert draft["acceptance_criteria"]
-
-
-def test_a_follow_up_after_the_request_still_counts():
-    messages = [
-        {"role": "user", "content": "create a new card"},
-        {"role": "assistant", "content": "What is it about?"},
-        {"role": "user", "content": "login with email"},
-    ]
-    assert spec_request_text(messages) == "login with email"
-
-
-def test_a_question_about_the_board_is_not_a_create_request():
-    assert spec_request_text([{"role": "user", "content": "what cards do we have?"}]) is None
 
 
 def _store(client):

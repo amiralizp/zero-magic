@@ -23,6 +23,7 @@ from .config import Settings
 from .repositories.factory import Repository, build_repository
 from .errors import install_error_handlers
 from .rate_limit import SlidingWindowLimiter
+from .services.chat_proposals import UsedProposalStore
 
 WEB_DIR = Path(__file__).resolve().parent / "web"
 
@@ -71,6 +72,11 @@ def create_app(
         limit=settings.login_rate_limit,
         window_seconds=settings.login_rate_window_seconds,
     )
+    app.state.chat_limiter = SlidingWindowLimiter(
+        limit=settings.chat_rate_limit,
+        window_seconds=settings.chat_rate_window_seconds,
+    )
+    app.state.chat_proposals = UsedProposalStore()
 
     install_error_handlers(app)
     app.add_middleware(

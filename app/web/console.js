@@ -1066,7 +1066,17 @@ function gantryChatRenderMessages() {
     return;
   }
   if (welcome) welcome.hidden = true;
-  wrap.innerHTML = gantryChat.messages.map((msg) => {
+  wrap.innerHTML = gantryChat.messages.map((msg, idx) => {
+    if (msg.role === 'proposal') {
+      const p = msg.proposal || {};
+      const status = msg.status || 'pending';
+      const statusText = status === 'confirmed' ? 'Confirmed' : status === 'cancelled' ? 'Cancelled' : status === 'error' ? 'Failed' : 'Needs confirmation';
+      const buttons = status === 'pending'
+        ? `<div class="gantry-chat-proposal-actions"><button class="gantry-btn gantry-btn-primary gantry-chat-confirm" data-proposal-idx="${idx}">Confirm</button><button class="gantry-btn gantry-chat-cancel" data-proposal-idx="${idx}">Cancel</button></div>`
+        : '';
+      const args = esc(JSON.stringify(p.arguments || {}, null, 2));
+      return `<div class="gantry-chat-msg assistant"><div class="gantry-chat-avatar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M7 20h10M9 16v4M15 16v4"/></svg></div><div class="gantry-chat-bubble-wrap"><div class="gantry-chat-role">Gantry AI</div><div class="gantry-chat-bubble gantry-chat-proposal"><div><strong>Proposal:</strong> ${esc(p.summary || p.tool || 'Action')}</div><div style="font-size:12px;opacity:.8;margin:4px 0">Tool: ${esc(p.tool || '')} · ${esc(statusText)}</div><pre style="white-space:pre-wrap;font-size:12px;margin:6px 0">${args}</pre>${buttons}</div></div></div>`;
+    }
     const isUser = msg.role === 'user';
     const avatar = isUser ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 1 0-16 0"/></svg>' : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M7 20h10M9 16v4M15 16v4"/></svg>';
     const content = isUser ? esc(msg.content).replace(/\n/g, '<br>') : DOMPurify.sanitize(marked.parse(msg.content || ''));
@@ -1091,6 +1101,45 @@ function gantryChatAddTyping() {
 function gantryChatRemoveTyping() {
   const el = document.getElementById('gantryChatTyping');
   if (el) el.remove();
+}
+
+async function gantryChatConfirmProposal(idx) {
+  const msg = gantryChat.messages[idx];
+  if (!msg || msg.role !== 'proposal' || msg.status !== 'pending') return;
+  msg.status = 'confirming';
+  gantryChatRenderMessages();
+  try {
+    const res = await fetch('/api/v1/chat/confirm', {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json', Accept: 'application/json' }),
+      body: JSON.stringify({ token: msg.proposal.token }),
+    });
+    const payload = await res.json().catch(() => null);
+    if (res.ok && payload && payload.ok) {
+      msg.status = 'confirmed';
+      toast('success', 'Proposal confirmed', payload.summary || 'Action executed.', payload.code || '');
+      if (payload.view === 'prds') switchTab('prds');
+      else switchTab('board');
+      refresh({ quiet: true });
+    } else {
+      msg.status = 'error';
+      const err = payload?.error || payload;
+      toast('error', 'Proposal failed', err?.message || payload?.message || 'Confirmation failed.', err?.code || payload?.code || '');
+    }
+  } catch (e) {
+    msg.status = 'error';
+    toast('error', 'Proposal failed', e.message || 'Confirmation failed.', 'network_error');
+  }
+  gantryChatSaveHistory();
+  gantryChatRenderMessages();
+}
+
+function gantryChatCancelProposal(idx) {
+  const msg = gantryChat.messages[idx];
+  if (!msg || msg.role !== 'proposal' || msg.status !== 'pending') return;
+  msg.status = 'cancelled';
+  gantryChatSaveHistory();
+  gantryChatRenderMessages();
 }
 
 async function gantryChatSend() {
@@ -1186,6 +1235,12 @@ async function gantryChatSend() {
           }
           return;
         }
+        if (parsed.gantry_proposal) {
+          gantryChat.messages.push({ role: 'proposal', proposal: parsed.gantry_proposal, status: 'pending' });
+          gantryChatSaveHistory();
+          gantryChatRenderMessages();
+          return;
+        }
         const delta = parsed.choices?.[0]?.delta?.content || '';
         if (delta) {
           text += delta;
@@ -1265,6 +1320,14 @@ function gantryChatWire() {
     input.value = '';
     input.style.height = 'auto';
     if (send) send.disabled = true;
+    input?.focus();
+  });
+  const chatWrap = document.getElementById('gantryChatMessages');
+  if (chatWrap) chatWrap.addEventListener('click', (e) => {
+    const confirmBtn = e.target.closest('.gantry-chat-confirm');
+    const cancelBtn = e.target.closest('.gantry-chat-cancel');
+    if (confirmBtn) gantryChatConfirmProposal(Number(confirmBtn.dataset.proposalIdx));
+    if (cancelBtn) gantryChatCancelProposal(Number(cancelBtn.dataset.proposalIdx));
     input?.focus();
   });
   if (model) model.addEventListener('change', () => {

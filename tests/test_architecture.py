@@ -657,3 +657,23 @@ def test_no_file_under_app_contains_x_actor_id():
         rel = path.relative_to(ROOT).as_posix()
         hits = _legacy_header_lines(path.read_text(encoding="utf-8"))
         assert not hits, f"{rel}: stale X-Actor-Id text on line(s) {hits}"
+
+
+# --- S21 chat proposal safety ------------------------------------------------
+
+
+def test_api_and_web_do_not_execute_write_tools_directly():
+    # Positive control: detector catches a direct tool execution.
+    sample = 'execute_tool(store, actor, "delete_card", {"card": "x"})\n'
+    assert "execute_tool(" in sample
+
+    for path in sorted((ROOT / "app" / "api").rglob("*.py")):
+        rel = path.relative_to(ROOT).as_posix()
+        source = path.read_text(encoding="utf-8")
+        assert "execute_tool(" not in source, f"{rel}: api must not execute write tools directly"
+    for path in sorted((ROOT / "app" / "web").rglob("*")):
+        if not path.is_file():
+            continue
+        rel = path.relative_to(ROOT).as_posix()
+        source = path.read_text(encoding="utf-8", errors="ignore")
+        assert "execute_tool(" not in source, f"{rel}: web must not execute write tools directly"
