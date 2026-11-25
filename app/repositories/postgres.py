@@ -311,6 +311,12 @@ class PostgresRepository:
             return None
         return self._card(row)
 
+    @staticmethod
+    def _norm_search(text: str) -> str:
+        return text.translate(
+            str.maketrans({"ك": "ک", "ي": "ی", "ى": "ی", "\u200c": "", "\u0640": ""})
+        ).casefold()
+
     def list_cards(
         self,
         *,
@@ -331,16 +337,23 @@ class PostgresRepository:
         if assignee_id is not None:
             clauses.append("assignee_id = :assignee_id")
             params["assignee_id"] = assignee_id
-        if query:
-            needle = f"%{query.strip()}%"
-            clauses.append("(title ILIKE :q OR goal ILIKE :q OR acceptance_criteria::text ILIKE :q)")
-            params["q"] = needle
         if clauses:
             sql += " WHERE " + " AND ".join(clauses)
         sql += " ORDER BY created_at, id"
         with self._conn() as conn:
             rows = conn.execute(text(sql), params).fetchall()
-        return [self._card(row) for row in rows]
+        items = [self._card(row) for row in rows]
+        if query:
+            needle = self._norm_search(query.strip())
+            if needle:
+                items = [
+                    card
+                    for card in items
+                    if needle in self._norm_search(card.title)
+                    or needle in self._norm_search(card.goal)
+                    or any(needle in self._norm_search(item) for item in card.acceptance_criteria)
+                ]
+        return items
 
     def update_card(
         self, card_id: str, *, actor_id: str | None = None, **changes: object

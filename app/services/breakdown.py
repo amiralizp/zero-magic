@@ -195,18 +195,28 @@ class BreakdownService:
             )
 
         breakdown: Breakdown = winner.breakdown  # type: ignore[attr-defined]
-        created = [
-            self.store.create_card(
-                title=draft.title,
-                goal=draft.goal,
-                acceptance_criteria=draft.acceptance_criteria,
-                out_of_scope=[],
-                created_by=actor.id,
-                prd_id=prd.id,
-                depends_on=draft.depends_on,
+        existing_titles = {
+            card.title.casefold().strip()
+            for card in self.store.list_cards()
+            if card.prd_id == prd.id
+        }
+        created = []
+        for draft in breakdown.cards:
+            key = draft.title.casefold().strip()
+            if key in existing_titles:
+                continue
+            created.append(
+                self.store.create_card(
+                    title=draft.title,
+                    goal=draft.goal,
+                    acceptance_criteria=draft.acceptance_criteria,
+                    out_of_scope=[],
+                    created_by=actor.id,
+                    prd_id=prd.id,
+                    depends_on=draft.depends_on,
+                )
             )
-            for draft in breakdown.cards
-        ]
+            existing_titles.add(key)
 
         fallback_used = winner_name != models[0]
         if fallback_used:

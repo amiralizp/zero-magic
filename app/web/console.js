@@ -292,7 +292,7 @@ function renderBoard() {
         <article class="card-tile stage-${esc(stage)}" draggable="true" tabindex="0"
                  data-id="${esc(card.id)}" role="button"
                  aria-label="Open card ${esc(card.title)}">
-          <span class="card-tile-title">${esc(card.title)}</span>
+          <span class="card-tile-title" dir="auto">${esc(card.title)}</span>
           <div class="card-tile-meta">
             ${assignee
               ? `<span class="mini-chip"><span class="avatar avatar--${esc(assignee.role)}">${esc(initials(assignee.display_name))}</span>${esc(assignee.display_name)}</span>`
@@ -420,12 +420,12 @@ function renderDrawer(card) {
     <div class="drawer-head">
       <div>
         <span class="stage-pill stage-${esc(card.stage)}"><span class="stage-dot" aria-hidden="true"></span>${esc(stageLabel(card.stage))}</span>
-        <h2>${esc(card.title)}</h2>
+        <h2 dir="auto">${esc(card.title)}</h2>
       </div>
       <button class="icon-btn" type="button" id="drawer-close" aria-label="Close detail panel">×</button>
     </div>
     <p class="drawer-id mono">${esc(card.id)} · v${card.version} · ${esc(card.source)}${card.prd_id ? ` · ${esc(card.prd_id)}` : ''}</p>
-    <p class="drawer-goal">${esc(card.goal)}</p>
+    <p class="drawer-goal" dir="auto">${esc(card.goal)}</p>
 
     <h3>Acceptance criteria</h3>
     <ul>${card.acceptance_criteria.map((item) => `<li>${esc(item)}</li>`).join('')}</ul>
@@ -515,7 +515,7 @@ function renderComments(error = null) {
         <span>·</span>
         <span>${esc(formatDate(comment.created_at))}</span>
       </div>
-      <div class="comment-body">${esc(comment.body)}</div>
+      <div class="comment-body" dir="auto">${esc(comment.body)}</div>
     </div>`).join('');
 }
 

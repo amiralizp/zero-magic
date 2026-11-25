@@ -234,6 +234,7 @@
 - [x] S18 login limit per address, role read from the repository, six bootstrap users
 - [x] S20 review fixes Z-3, Z-4, Z-5, Z-6, Z-10, Z-12
 - [x] S21 chat writes need human confirmation; chat limits (Z-1, Z-2)
+- [x] S22 review fixes Z-7, Z-8, Z-9
 
 ## OpenCode practice status (honest record)
 

@@ -156,6 +156,12 @@ class InMemoryRepository:
         with self._lock:
             return self.cards.get(card_id)
 
+    @staticmethod
+    def _norm_search(text: str) -> str:
+        return text.translate(
+            str.maketrans({"ك": "ک", "ي": "ی", "ى": "ی", "\u200c": "", "\u0640": ""})
+        ).casefold()
+
     def list_cards(
         self,
         *,
@@ -170,14 +176,14 @@ class InMemoryRepository:
         if assignee_id is not None:
             items = [card for card in items if card.assignee_id == assignee_id]
         if query:
-            needle = query.casefold().strip()
+            needle = self._norm_search(query.strip())
             if needle:
                 items = [
                     card
                     for card in items
-                    if needle in card.title.casefold()
-                    or needle in card.goal.casefold()
-                    or any(needle in item.casefold() for item in card.acceptance_criteria)
+                    if needle in self._norm_search(card.title)
+                    or needle in self._norm_search(card.goal)
+                    or any(needle in self._norm_search(item) for item in card.acceptance_criteria)
                 ]
         return sorted(items, key=lambda card: (card.created_at, card.id))
 

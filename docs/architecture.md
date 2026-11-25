@@ -425,10 +425,10 @@ not by the app; no credential is compiled into the server.
 | --- | --- | --- | --- |
 | A01 | Broken Access Control | Roles are checked in services on every call; agents never reach `done`; default deny | None |
 | A02 | Security Misconfiguration | Single CORS origin, no debug flag, `.env` gitignored | Add security headers at the proxy |
-| A03 | Software Supply Chain Failures | Versions pinned in `requirements.txt`; browser CDN assets in `app/web` are pinned and verified (SRI or vendored locally) | Z-7 remains open; nine spec questions remain open |
+| A03 | Software Supply Chain Failures | Versions pinned in `requirements.txt`; browser CDN assets in `app/web` are pinned and verified (SRI or vendored locally) | Nine spec questions remain open |
 | A04 | Cryptographic Failures | Argon2id-hashed passwords; `JWT_SECRET` only in `.env`; placeholder/weak secrets rejected at startup/auth path (500 `auth_misconfigured`, no detail) | Nine spec questions remain open |
 | A05 | Injection | Parameterised queries only; `app/ai/safety.py` scans model prompts | None |
-| A06 | Insecure Design | The builder cannot validate its own card; no design-level bypass; chat write tools return signed proposals and execute only after human confirmation via `/api/v1/chat/confirm`; chat input/models/tokens/rate are limited | Z-1 and Z-2 fixed; remaining gaps Z-7, Z-8, Z-9, Z-11 and the nine spec questions remain open |
+| A06 | Insecure Design | The builder cannot validate its own card; no design-level bypass; chat write tools return signed proposals and execute only after human confirmation via `/api/v1/chat/confirm`; chat input/models/tokens/rate are limited; breakdown skips duplicate titles on repeat; card search normalizes Arabic/Persian variants; console user text uses `dir="auto"` | Z-1, Z-2, Z-7, Z-8, Z-9 fixed; remaining gaps Z-11 and the nine spec questions remain open |
 | A07 | Authentication Failures | Hashed login, expiring tokens, per-client-IP and per-username-and-IP login rate limits, browser token kept only in memory (no localStorage), role read from repository on every request; unknown-user login does dummy argon2 verify | Week 7: Redis limiter shared across workers; Z-11 remains open |
 | A08 | Software or Data Integrity Failures | Alembic migrations only; no backup endpoint | Verify a backup before restore |
 | A09 | Security Logging and Alerting Failures | `audit_log` records transitions and `auth.login_failed` | None |
