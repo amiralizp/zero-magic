@@ -92,3 +92,13 @@ def test_console_and_chat_keep_access_token_in_memory_only(client):
         assert "localStorage.setItem('zm.token'" not in script
         assert "sessionStorage" not in script
         assert "document.cookie" not in script
+
+
+def test_console_user_text_has_dir_auto(client):
+    body = client.get("/console").text
+    assert 'lang="fa"' in body
+    script = client.get("/console/assets/console.js").text
+    assert 'class="card-tile-title" dir="auto"' in script
+    assert '<h2 dir="auto">${esc(card.title)}</h2>' in script
+    assert '<p class="drawer-goal" dir="auto">' in script
+    assert '<div class="comment-body" dir="auto">' in script

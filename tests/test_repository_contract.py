@@ -131,6 +131,26 @@ def test_list_filter_by_stage(repo):
     assert len(spec) == 1
 
 
+def test_list_cards_search_normalizes_arabic_persian(repo):
+    repo.create_card(
+        title="كارت تست",
+        goal="Long enough goal text.",
+        acceptance_criteria=["a"],
+        out_of_scope=[],
+        created_by="human:ada",
+    )
+    repo.create_card(
+        title="Other card",
+        goal="Long enough goal text.",
+        acceptance_criteria=["a"],
+        out_of_scope=[],
+        created_by="human:ada",
+    )
+    found = repo.list_cards(query="کارت")
+    assert len(found) == 1
+    assert found[0].title == "كارت تست"
+
+
 def test_list_filter_by_assignee(repo):
     card = repo.create_card(title="Assigned", goal="Long enough goal text.", acceptance_criteria=["a"], out_of_scope=[], created_by="human:ada")
     repo.update_card(card.id, actor_id="human:ada", assignee_id="human:grace")

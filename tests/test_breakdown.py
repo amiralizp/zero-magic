@@ -102,6 +102,24 @@ def test_breakdown_model_override(client):
     assert len(body["cards"]) == 3
 
 
+def test_breakdown_twice_does_not_create_duplicate_titles(client):
+    prd = create_prd(client)
+    first = breakdown(client, prd["id"])
+    assert first.status_code == 201, first.text
+    first_cards = first.json()["cards"]
+    assert first_cards
+
+    second = breakdown(client, prd["id"])
+    assert second.status_code == 201, second.text
+    second_cards = second.json()["cards"]
+    assert second_cards == []
+
+    listed = client.get("/api/v1/cards").json()["items"]
+    titles = [card["title"] for card in listed if card["prd_id"] == prd["id"]]
+    assert len(titles) == len(set(t.casefold().strip() for t in titles))
+    assert len(titles) == len(first_cards)
+
+
 def test_unknown_model_is_422(client):
     prd = create_prd(client)
     response = breakdown(client, prd["id"], model="gpt-unconfigured")
