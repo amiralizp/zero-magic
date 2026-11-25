@@ -233,6 +233,7 @@
 - [x] S17 token kept only in memory in the browser, X-Actor-Id text removed
 - [x] S18 login limit per address, role read from the repository, six bootstrap users
 - [x] S20 review fixes Z-3, Z-4, Z-5, Z-6, Z-10, Z-12
+- [x] S21 chat writes need human confirmation; chat limits (Z-1, Z-2)
 
 ## OpenCode practice status (honest record)
 

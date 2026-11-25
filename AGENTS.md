@@ -83,6 +83,9 @@ BUG-001 in `docs/test-plan.md`).
 11. **Identity is a signed token.** `X-Actor-Id` is ignored; no token or password
     is hardcoded. Only `app/services/auth.py` imports `jwt`/`argon2`, and no
     password, hash or `JWT_SECRET` may be logged or returned.
+12. **The chat assistant never writes without a human confirmation.** Write
+    tools return signed proposals; execution happens only through the confirm
+    endpoint after the signed-in human confirms.
 
 ## Security checklist (OWASP API Top 10, 2025)
 
