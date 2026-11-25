@@ -125,6 +125,17 @@ def test_chat_tool_result_card_shape(monkeypatch):
         json={"messages": [{"role": "user", "content": "make a card"}]},
     )
     assert response.status_code == 200
+    frames = []
+    for line in response.text.splitlines():
+        if line.startswith("data: ") and line[6:] != "[DONE]":
+            frames.append(json.loads(line[6:]))
+    proposal = next(f["gantry_proposal"] for f in frames if "gantry_proposal" in f)
+    confirm = client.post(
+        "/api/v1/chat/confirm",
+        headers=headers(HUMAN),
+        json={"token": proposal["token"]},
+    )
+    assert confirm.status_code == 200
     cards = client.get("/api/v1/cards").json()["items"]
     assert any(c["title"] == "Chat-created card" for c in cards)
 

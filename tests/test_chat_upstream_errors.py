@@ -110,7 +110,8 @@ def test_stream_fails_after_first_event(monkeypatch):
     assert response.status_code == 200
     frames = _events(response)
     assert len(frames) >= 2
-    assert "gantry_tool" in frames[0]
+    assert "gantry_proposal" in frames[0]
+    assert frames[0]["gantry_proposal"]["tool"] == "create_spec"
     assert "error" in frames[-1]
 
 

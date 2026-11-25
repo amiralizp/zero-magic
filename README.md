@@ -148,6 +148,10 @@ CHAT_API_KEY=sk-...
 CHAT_BASE_URL=https://api.deepseek.com
 CHAT_MODEL=deepseek-flash
 CHAT_PROVIDER=DeepSeek
+CHAT_MAX_TOKENS_CAP=2048
+CHAT_RATE_LIMIT=20
+CHAT_RATE_WINDOW_SECONDS=60
+# CHAT_ALLOWED_MODELS=deepseek-flash,deepseek-reasoner
 ```
 
 Keys are created at <https://platform.deepseek.com/api_keys>. The key stays in
@@ -171,12 +175,16 @@ CHAT_SESSION=ses_gantry
 | --- | --- | --- |
 | GET | `/api/v1/chat/models` | Models this key can use, plus the default |
 | POST | `/api/v1/chat/completions` | Streamed completion, SSE `data:` frames |
+| POST | `/api/v1/chat/confirm` | Confirm a signed write proposal |
 
-The assistant acts as the signed-in user. It can create a
-spec, edit one, move a card, assign it, comment, delete it, or store a PRD.
-Those calls go through the same service rules as the buttons, so an agent still
-cannot approve a spec and the builder still cannot validate their own card. A
-successful action refreshes the board while the reply streams.
+The assistant acts as the signed-in user. Read-only tools run immediately.
+Write tools (create/edit/move/assign/comment/delete/store PRD) return a signed
+proposal and execute only after the human clicks Confirm in the UI. Confirmed
+writes go through the same service rules as the buttons, so an agent still
+cannot approve a spec and the builder still cannot validate their own card.
+Chat input is limited (30 messages, 8000 chars/message, 24000 total), models are
+allowlisted, `max_tokens` is capped server-side, and requests are per-actor rate
+limited.
 
 `402` from the provider means the account has no balance: the stream reports
 that in an `{"error": ...}` frame, because the response has already started.

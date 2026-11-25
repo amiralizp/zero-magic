@@ -46,6 +46,14 @@ def get_login_ip_limiter(request: Request) -> SlidingWindowLimiter:
     return request.app.state.login_ip_limiter
 
 
+def get_chat_limiter(request: Request) -> SlidingWindowLimiter:
+    return request.app.state.chat_limiter
+
+
+def get_chat_proposals(request: Request):
+    return request.app.state.chat_proposals
+
+
 def get_token_identity(request: Request) -> TokenIdentity:
     """Verify the Authorization header and return the claimed identity."""
 

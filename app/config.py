@@ -28,6 +28,9 @@ DEFAULT_OPENROUTER_BASE = "https://openrouter.ai/api/v1"
 DEFAULT_CHAT_BASE = "https://api.deepseek.com"
 DEFAULT_CHAT_MODEL = "deepseek-flash"
 DEFAULT_CHAT_PROVIDER = "DeepSeek"
+DEFAULT_CHAT_MAX_TOKENS_CAP = 2048
+DEFAULT_CHAT_RATE_LIMIT = 20
+DEFAULT_CHAT_RATE_WINDOW_SECONDS = 60.0
 DEFAULT_TOKEN_TTL_SECONDS = 3600
 
 
@@ -98,6 +101,10 @@ class Settings:
     chat_model: str = DEFAULT_CHAT_MODEL
     chat_provider: str = DEFAULT_CHAT_PROVIDER
     chat_session: str = ""
+    chat_max_tokens_cap: int = DEFAULT_CHAT_MAX_TOKENS_CAP
+    chat_allowed_models: tuple[str, ...] = ()
+    chat_rate_limit: int = DEFAULT_CHAT_RATE_LIMIT
+    chat_rate_window_seconds: float = DEFAULT_CHAT_RATE_WINDOW_SECONDS
 
     # PostgreSQL is the durable store. Empty means the in-memory repository.
     database_url: str = field(default="", repr=False)
@@ -115,6 +122,10 @@ class Settings:
 
     openrouter_api_key: str | None = field(default=None, repr=False)
     openrouter_base_url: str = DEFAULT_OPENROUTER_BASE
+
+    def __post_init__(self) -> None:
+        if not self.chat_allowed_models:
+            object.__setattr__(self, "chat_allowed_models", (self.chat_model,))
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -135,9 +146,19 @@ class Settings:
             chat_api_key=os.getenv("CHAT_API_KEY", ""),
             chat_base_url=os.getenv("CHAT_BASE_URL", DEFAULT_CHAT_BASE),
             chat_models_url=os.getenv("CHAT_MODELS_URL", ""),
-            chat_model=os.getenv("CHAT_MODEL", DEFAULT_CHAT_MODEL),
+            chat_model=(chat_model := os.getenv("CHAT_MODEL", DEFAULT_CHAT_MODEL)),
             chat_provider=os.getenv("CHAT_PROVIDER", DEFAULT_CHAT_PROVIDER),
             chat_session=os.getenv("CHAT_SESSION", ""),
+            chat_max_tokens_cap=_int("CHAT_MAX_TOKENS_CAP", DEFAULT_CHAT_MAX_TOKENS_CAP),
+            chat_allowed_models=tuple(
+                item.strip()
+                for item in os.getenv("CHAT_ALLOWED_MODELS", chat_model).split(",")
+                if item.strip()
+            ),
+            chat_rate_limit=_int("CHAT_RATE_LIMIT", DEFAULT_CHAT_RATE_LIMIT),
+            chat_rate_window_seconds=_float(
+                "CHAT_RATE_WINDOW_SECONDS", DEFAULT_CHAT_RATE_WINDOW_SECONDS
+            ),
             database_url=os.getenv("DATABASE_URL", ""),
             jwt_secret=os.getenv("JWT_SECRET", ""),
             token_ttl_seconds=_int("TOKEN_TTL_SECONDS", DEFAULT_TOKEN_TTL_SECONDS),

@@ -224,6 +224,9 @@ app/
 | GET | `/api/v1/prds` | token | 200 | 401 |
 | GET | `/api/v1/prds/{id}` | token | 200 | 401, 404 |
 | POST | `/api/v1/prds/{id}/breakdown` | human | 201 | 401, 403, 404, 422, 429, 502, 504 |
+| GET | `/api/v1/chat/models` | token | 200 | 401, 502 |
+| POST | `/api/v1/chat/completions` | token | 200 (SSE) | 400 `invalid_json`/`invalid_body`/`invalid_messages`, 401, 422 `invalid_payload`, 429 `rate_limited`, 502 |
+| POST | `/api/v1/chat/confirm` | token | 200 | 400, 401, 403 `invalid_proposal`/`forbidden`, 409 `proposal_used`, 422 |
 | GET | `/console` | none | 200 | - (static console, outside OpenAPI) |
 | GET | `/chat` | none | 200 | - (static chat, outside OpenAPI) |
 
@@ -236,6 +239,14 @@ The console and chat pages are mounted from `app/web/` with `StaticFiles` under
 they are not part of the API contract; they sign in through `/auth/login`, keep
 the token under `zm.token`, and send it on every API call, so the server's rules
 stay authoritative.
+
+Chat flow (Z-1/Z-2): `POST /api/v1/chat/completions` validates limits (max 30
+messages, 8000 chars/message, 24000 total, allowed model, capped `max_tokens`,
+per-actor rate limit). Read-only tools run immediately and emit `gantry_tool`
+frames. Write tools emit signed `gantry_proposal` frames and do not execute;
+`POST /api/v1/chat/confirm` verifies the proposal token, actor, arguments hash,
+and used-id set, then executes the same service function under normal service
+rules.
 
 ## 7. The state machine
 
@@ -414,10 +425,10 @@ not by the app; no credential is compiled into the server.
 | --- | --- | --- | --- |
 | A01 | Broken Access Control | Roles are checked in services on every call; agents never reach `done`; default deny | None |
 | A02 | Security Misconfiguration | Single CORS origin, no debug flag, `.env` gitignored | Add security headers at the proxy |
-| A03 | Software Supply Chain Failures | Versions pinned in `requirements.txt`; browser CDN assets in `app/web` are pinned and verified (SRI or vendored locally) | Z-2, Z-7 remain open; nine spec questions remain open |
-| A04 | Cryptographic Failures | Argon2id-hashed passwords; `JWT_SECRET` only in `.env`; placeholder/weak secrets rejected at startup/auth path (500 `auth_misconfigured`, no detail) | Z-1 remains open; nine spec questions remain open |
+| A03 | Software Supply Chain Failures | Versions pinned in `requirements.txt`; browser CDN assets in `app/web` are pinned and verified (SRI or vendored locally) | Z-7 remains open; nine spec questions remain open |
+| A04 | Cryptographic Failures | Argon2id-hashed passwords; `JWT_SECRET` only in `.env`; placeholder/weak secrets rejected at startup/auth path (500 `auth_misconfigured`, no detail) | Nine spec questions remain open |
 | A05 | Injection | Parameterised queries only; `app/ai/safety.py` scans model prompts | None |
-| A06 | Insecure Design | The builder cannot validate its own card; no design-level bypass | Z-8, Z-9 remain open; nine spec questions remain open |
+| A06 | Insecure Design | The builder cannot validate its own card; no design-level bypass; chat write tools return signed proposals and execute only after human confirmation via `/api/v1/chat/confirm`; chat input/models/tokens/rate are limited | Z-1 and Z-2 fixed; remaining gaps Z-7, Z-8, Z-9, Z-11 and the nine spec questions remain open |
 | A07 | Authentication Failures | Hashed login, expiring tokens, per-client-IP and per-username-and-IP login rate limits, browser token kept only in memory (no localStorage), role read from repository on every request; unknown-user login does dummy argon2 verify | Week 7: Redis limiter shared across workers; Z-11 remains open |
 | A08 | Software or Data Integrity Failures | Alembic migrations only; no backup endpoint | Verify a backup before restore |
 | A09 | Security Logging and Alerting Failures | `audit_log` records transitions and `auth.login_failed` | None |

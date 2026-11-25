@@ -95,6 +95,29 @@ def _post_breakdown(client: Any) -> tuple[str, dict[str, Any]]:
     return f"/api/v1/prds/{prd['id']}/breakdown", {"json": {"prompt_version": "v2"}}
 
 
+def _post_chat_confirm(client: Any) -> tuple[str, dict[str, Any]]:
+    from app.services import chat_proposals
+
+    card = create_card(client)
+    args = {"card": card["id"]}
+    signed = chat_proposals.issue_proposal(
+        jwt_secret=client.app.state.settings.jwt_secret,
+        actor_id=HUMAN,
+        tool="delete_card",
+        arguments=args,
+    )
+    client.app.state.chat_proposals.put(
+        chat_proposals.PendingProposal(
+            proposal_id=signed["proposal_id"],
+            actor_id=HUMAN,
+            tool="delete_card",
+            arguments=args,
+            exp=signed["exp"],
+        )
+    )
+    return "/api/v1/chat/confirm", {"json": {"token": signed["token"], "arguments": args}}
+
+
 PROTECTED = (
     RouteCase("get-actors", "GET", "/api/v1/actors", lambda c: ("/api/v1/actors", {}), 200),
     RouteCase("get-meta", "GET", "/api/v1/meta", lambda c: ("/api/v1/meta", {}), 200),
@@ -143,6 +166,14 @@ PROTECTED = (
             {"json": {"messages": [{"role": "user", "content": "hi"}]}},
         ),
         200,
+    ),
+    RouteCase(
+        "post-chat-confirm",
+        "POST",
+        "/api/v1/chat/confirm",
+        _post_chat_confirm,
+        200,
+        "forbidden",
     ),
 )
 

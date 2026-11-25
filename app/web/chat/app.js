@@ -177,13 +177,21 @@ document.querySelectorAll('.suggestion-card').forEach((card) => {
     });
 });
 
+function esc(s) {
+    const d = document.createElement('div');
+    d.textContent = s == null ? '' : String(s);
+    return d.innerHTML;
+}
+
 function renderMessages() {
     messagesDiv.innerHTML = '';
-    messages.forEach((msg) => messagesDiv.appendChild(createMessageElement(msg.role, msg.content)));
+    messages.forEach((msg) => messagesDiv.appendChild(createMessageElement(msg)));
     scrollToBottom();
 }
 
-function createMessageElement(role, content) {
+function createMessageElement(msg) {
+    const role = msg.role;
+    const content = msg.content || '';
     const wrap = document.createElement('div');
     wrap.className = `message ${role === 'user' ? 'user-message' : 'assistant-message'}`;
 
@@ -203,7 +211,40 @@ function createMessageElement(role, content) {
 
     const text = document.createElement('div');
     text.className = 'message-text';
-    if (role === 'assistant') {
+    if (role === 'proposal') {
+        const p = msg.proposal || {};
+        const status = msg.status || 'pending';
+        const statusText = status === 'confirmed' ? 'Confirmed' : status === 'cancelled' ? 'Cancelled' : status === 'error' ? 'Failed' : 'Needs confirmation';
+        const args = document.createElement('pre');
+        args.style.whiteSpace = 'pre-wrap';
+        args.style.fontSize = '12px';
+        args.textContent = JSON.stringify(p.arguments || {}, null, 2);
+        const title = document.createElement('div');
+        title.innerHTML = '<strong>Proposal:</strong> ' + esc(p.summary || p.tool || 'Action');
+        const meta = document.createElement('div');
+        meta.style.fontSize = '12px';
+        meta.style.opacity = '0.8';
+        meta.textContent = `Tool: ${p.tool || ''} · ${statusText}`;
+        text.appendChild(title);
+        text.appendChild(meta);
+        text.appendChild(args);
+        if (status === 'pending') {
+            const actions = document.createElement('div');
+            actions.style.display = 'flex';
+            actions.style.gap = '8px';
+            const confirmBtn = document.createElement('button');
+            confirmBtn.className = 'btn-icon';
+            confirmBtn.textContent = 'Confirm';
+            confirmBtn.addEventListener('click', () => confirmProposal(msg));
+            const cancelBtn = document.createElement('button');
+            cancelBtn.className = 'btn-icon';
+            cancelBtn.textContent = 'Cancel';
+            cancelBtn.addEventListener('click', () => { msg.status = 'cancelled'; saveHistory(); renderMessages(); });
+            actions.appendChild(confirmBtn);
+            actions.appendChild(cancelBtn);
+            text.appendChild(actions);
+        }
+    } else if (role === 'assistant') {
         text.innerHTML = DOMPurify.sanitize(marked.parse(content || ''));
     } else {
         text.textContent = content;
@@ -251,6 +292,32 @@ function scrollToBottom() {
     chatContainer.scrollTop = chatContainer.scrollHeight;
 }
 
+async function confirmProposal(msg) {
+    if (!msg || msg.role !== 'proposal' || msg.status !== 'pending') return;
+    msg.status = 'confirming';
+    saveHistory();
+    renderMessages();
+    try {
+        const res = await fetch('/api/v1/chat/confirm', {
+            method: 'POST',
+            headers: authHeaders({ 'Content-Type': 'application/json' }),
+            body: JSON.stringify({ token: msg.proposal.token }),
+        });
+        const payload = await res.json().catch(() => null);
+        if (res.ok && payload && payload.ok) {
+            msg.status = 'confirmed';
+        } else {
+            msg.status = 'error';
+            msg.error = payload?.error?.message || payload?.message || 'Confirmation failed.';
+        }
+    } catch (e) {
+        msg.status = 'error';
+        msg.error = e.message || 'Confirmation failed.';
+    }
+    saveHistory();
+    renderMessages();
+}
+
 async function sendMessage() {
     const content = userInput.value.trim();
     if (!content || isGenerating) return;
@@ -263,7 +330,7 @@ async function sendMessage() {
 
     messages.push({ role: 'user', content });
     saveHistory();
-    messagesDiv.appendChild(createMessageElement('user', content));
+    messagesDiv.appendChild(createMessageElement({role:'user', content}));
 
     userInput.value = '';
     autoResize();
@@ -300,7 +367,7 @@ async function sendMessage() {
         const decoder = new TextDecoder();
         let assistantText = '';
 
-        const wrap = createMessageElement('assistant', '');
+        const wrap = createMessageElement({role:'assistant', content:''});
         messagesDiv.appendChild(wrap);
         const textDiv = wrap.querySelector('.message-text');
 
@@ -318,6 +385,14 @@ async function sendMessage() {
                         textDiv.textContent = 'خطا: ' + parsed.error;
                         break;
                     }
+                    if (parsed.gantry_proposal) {
+                        const pmsg = { role: 'proposal', proposal: parsed.gantry_proposal, status: 'pending' };
+                        messages.push(pmsg);
+                        saveHistory();
+                        messagesDiv.appendChild(createMessageElement(pmsg));
+                        scrollToBottom();
+                        continue;
+                    }
                     const delta = parsed.choices?.[0]?.delta?.content || '';
                     if (delta) {
                         assistantText += delta;
@@ -334,7 +409,7 @@ async function sendMessage() {
         }
     } catch (e) {
         removeTyping();
-        messagesDiv.appendChild(createMessageElement('assistant', 'متأسفم، خطایی رخ داد: ' + e.message));
+        messagesDiv.appendChild(createMessageElement({role:'assistant', content:'متأسفم، خطایی رخ داد: ' + e.message}));
     }
 
     isGenerating = false;

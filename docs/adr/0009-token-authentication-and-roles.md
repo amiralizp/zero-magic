@@ -45,6 +45,10 @@ they trust an identity that cannot be trusted.
   idempotent and prints usernames only.
 - The console and the standalone chat page share one browser token under
   `zm.token` and send it as `Authorization: Bearer ...`.
+- Chat writes are proposals confirmed by the signed-in human. The chat tool
+  returns a signed proposal; `POST /api/v1/chat/confirm` verifies and executes
+  it. The used-proposal set is in memory (reset on restart, bounded by the
+  5-minute expiry).
 
 ## Consequences
 
